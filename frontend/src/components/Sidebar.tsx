@@ -24,8 +24,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   const navItems = [
-    { path: '/todos', icon: CheckSquare, label: 'Todos' },
     { path: '/memories', icon: BookmarkSimple, label: 'Memories' },
+    { path: '/todos', icon: CheckSquare, label: 'Todos' },
     { path: '/chat', icon: ChatCircle, label: 'Ask AI' },
     { path: '/settings', icon: Gear, label: 'Settings' },
   ];

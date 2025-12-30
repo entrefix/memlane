@@ -1,7 +1,11 @@
 package handlers
 
 import (
+	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -11,12 +15,14 @@ import (
 )
 
 type MemoryHandler struct {
-	memoryService *services.MemoryService
+	memoryService     *services.MemoryService
+	fileParserService *services.FileParserService
 }
 
-func NewMemoryHandler(memoryService *services.MemoryService) *MemoryHandler {
+func NewMemoryHandler(memoryService *services.MemoryService, fileParserService *services.FileParserService) *MemoryHandler {
 	return &MemoryHandler{
-		memoryService: memoryService,
+		memoryService:     memoryService,
+		fileParserService: fileParserService,
 	}
 }
 
@@ -252,4 +258,76 @@ func (h *MemoryHandler) GetStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+// UploadMemoryFile handles file upload for creating memories from .txt or .md files
+func (h *MemoryHandler) UploadMemoryFile(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+
+	// 1. Get uploaded file from multipart form-data
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No file uploaded"})
+		return
+	}
+
+	// 2. Validate file (type and size)
+	if err := h.fileParserService.ValidateFile(file.Filename, file.Size); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 3. Open and read file content
+	fileContent, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read file"})
+		return
+	}
+	defer fileContent.Close()
+
+	contentBytes, err := io.ReadAll(fileContent)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read file content"})
+		return
+	}
+
+	// 4. Parse file into memory sections
+	sections, err := h.fileParserService.ParseFile(file.Filename, contentBytes)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Parse error: %v", err)})
+		return
+	}
+
+	// 5. Create memories from sections (reuse existing MemoryService.Create)
+	//    Each section goes through full AI processing pipeline
+	var createdMemories []models.Memory
+	for _, section := range sections {
+		req := &models.MemoryCreateRequest{
+			Content: section.Content,
+		}
+
+		memory, err := h.memoryService.Create(userID, req)
+		if err != nil {
+			log.Printf("[UploadMemoryFile] Failed to create memory for section %q: %v", section.Heading, err)
+			// Continue with other sections even if one fails
+			continue
+		}
+
+		createdMemories = append(createdMemories, *memory)
+	}
+
+	// 6. Check if any memories were created
+	if len(createdMemories) == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create any memories from file"})
+		return
+	}
+
+	// 7. Return bulk response
+	fileType := filepath.Ext(file.Filename)
+	c.JSON(http.StatusCreated, gin.H{
+		"memories":      createdMemories,
+		"total_created": len(createdMemories),
+		"filename":      file.Filename,
+		"file_type":     fileType,
+	})
 }

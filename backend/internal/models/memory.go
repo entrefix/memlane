@@ -89,3 +89,11 @@ type URLSummary struct {
 	Title   string `json:"title"`
 	Summary string `json:"summary"`
 }
+
+// MemoryBulkCreateResponse is the response for bulk memory creation from file upload
+type MemoryBulkCreateResponse struct {
+	Memories     []Memory `json:"memories"`
+	TotalCreated int      `json:"total_created"`
+	Filename     string   `json:"filename"`
+	FileType     string   `json:"file_type"`
+}

@@ -133,6 +133,13 @@ export interface MemoryStats {
   this_month: number;
 }
 
+export interface MemoryFileUploadResponse {
+  memories: Memory[];
+  total_created: number;
+  filename: string;
+  file_type: string;
+}
+
 export interface WebSearchResult {
   title: string;
   url: string;

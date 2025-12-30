@@ -16,6 +16,7 @@ func Setup(
 	memoryService *services.MemoryService,
 	ragService *services.RAGService,
 	userDataService *services.UserDataService,
+	fileParserService *services.FileParserService,
 	allowedOrigins []string,
 ) *gin.Engine {
 	r := gin.Default()
@@ -38,7 +39,7 @@ func Setup(
 	todoHandler := handlers.NewTodoHandler(todoService)
 	groupHandler := handlers.NewGroupHandler(groupService)
 	aiProviderHandler := handlers.NewAIProviderHandler(aiProviderService)
-	memoryHandler := handlers.NewMemoryHandler(memoryService)
+	memoryHandler := handlers.NewMemoryHandler(memoryService, fileParserService)
 	ragHandler := handlers.NewRAGHandler(ragService)
 	userDataHandler := handlers.NewUserDataHandler(userDataService)
 
@@ -88,6 +89,7 @@ func Setup(
 			// Memories
 			protected.GET("/memories", memoryHandler.GetAll)
 			protected.POST("/memories", memoryHandler.Create)
+			protected.POST("/memories/upload", memoryHandler.UploadMemoryFile)
 			protected.GET("/memories/categories", memoryHandler.GetCategories)
 			protected.GET("/memories/category/:category", memoryHandler.GetByCategory)
 			protected.GET("/memories/stats", memoryHandler.GetStats)

@@ -14,18 +14,18 @@ export default function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={!user ? <Login /> : <Navigate to="/todos" />} />
-      <Route path="/register" element={!user ? <Register /> : <Navigate to="/todos" />} />
+      <Route path="/login" element={!user ? <Login /> : <Navigate to="/memories" />} />
+      <Route path="/register" element={!user ? <Register /> : <Navigate to="/memories" />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="/todos" element={<Dashboard />} />
           <Route path="/memories" element={<Memories />} />
           <Route path="/chat" element={<Chat />} />
-          <Route path="/dashboard" element={<Navigate to="/todos" />} />
+          <Route path="/dashboard" element={<Navigate to="/memories" />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate to={user ? '/todos' : '/login'} />} />
+      <Route path="*" element={<Navigate to={user ? '/memories' : '/login'} />} />
     </Routes>
   );
 }

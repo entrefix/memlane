@@ -121,8 +121,11 @@ func main() {
 	// Initialize user data service (for data management)
 	userDataService := services.NewUserDataService(memoryRepo, todoRepo, groupRepo, vectorRepo, ragService)
 
+	// Initialize file parser service
+	fileParserService := services.NewFileParserService()
+
 	// Setup router
-	r := router.Setup(authService, todoService, groupService, aiProviderService, memoryService, ragService, userDataService, cfg.AllowedOrigins)
+	r := router.Setup(authService, todoService, groupService, aiProviderService, memoryService, ragService, userDataService, fileParserService, cfg.AllowedOrigins)
 
 	// Start server
 	log.Printf("Server starting on port %s", cfg.Port)

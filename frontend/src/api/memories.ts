@@ -8,6 +8,7 @@ import {
   MemorySearchParams,
   MemoryToTodoParams,
   MemoryStats,
+  MemoryFileUploadResponse,
   WebSearchResult,
   Todo,
 } from '../types';
@@ -76,6 +77,18 @@ export const memoryApi = {
 
   getStats: async (): Promise<MemoryStats> => {
     const response = await client.get('/memories/stats');
+    return response.data;
+  },
+
+  uploadFile: async (file: File): Promise<MemoryFileUploadResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await client.post('/memories/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 };

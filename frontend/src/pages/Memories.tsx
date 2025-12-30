@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import {
   SquaresFour,
   List,
@@ -26,6 +27,7 @@ import {
   Trophy,
   ChatCircle,
   Folder,
+  FilePlus,
 } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
 import { memoryApi } from '../api';
@@ -62,6 +64,7 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 
 export default function Memories() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [memories, setMemories] = useState<Memory[]>([]);
   const [categories, setCategories] = useState<MemoryCategory[]>([]);
   const [stats, setStats] = useState<MemoryStats | null>(null);
@@ -77,6 +80,8 @@ export default function Memories() {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [urlPreviewMemory, setUrlPreviewMemory] = useState<Memory | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
 
   // Debounce search query for server-side search
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -180,6 +185,56 @@ export default function Memories() {
       // Remove failed pending memory
       setPendingMemories((prev) => prev.filter((p) => p.tempId !== tempId));
       toast.error('Failed to save memory');
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Client-side validation
+    const maxSize = 5 * 1024 * 1024; // 5 MB
+    if (file.size > maxSize) {
+      toast.error('File too large. Maximum size is 5 MB.');
+      e.target.value = ''; // Clear input
+      return;
+    }
+
+    const validTypes = ['.txt', '.md'];
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (!validTypes.includes(ext)) {
+      toast.error('Invalid file type. Only .txt and .md files are supported.');
+      e.target.value = ''; // Clear input
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(`Uploading ${file.name}...`);
+
+    try {
+      const result = await memoryApi.uploadFile(file);
+
+      // Add newly created memories to state (at top of list)
+      setMemories((prev) => [...result.memories, ...prev]);
+
+      // Show success message
+      toast.success(
+        `Successfully created ${result.total_created} ${
+          result.total_created === 1 ? 'memory' : 'memories'
+        } from ${result.filename}`
+      );
+
+      // Refresh stats in background
+      memoryApi.getStats().then(setStats).catch(() => {});
+
+      // Clear file input
+      e.target.value = '';
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Failed to upload file';
+      toast.error(errorMsg);
+    } finally {
+      setIsUploading(false);
+      setUploadProgress('');
     }
   };
 
@@ -372,13 +427,25 @@ export default function Memories() {
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="mb-6 pl-10 lg:pl-0">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Memories
-            </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Capture ideas, links, and thoughts - AI organizes them for you
-        </p>
-      </div>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                  Memories
+                </h1>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">
+                  Capture ideas, links, and thoughts - AI organizes them for you
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/chat')}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors shadow-subtle hover:shadow-md"
+              >
+                <ChatCircle size={20} weight="regular" />
+                <span className="hidden sm:inline">Ask Questions</span>
+                <span className="sm:hidden">Ask</span>
+              </button>
+            </div>
+          </div>
 
       {/* Stats */}
       {stats && (
@@ -464,6 +531,68 @@ export default function Memories() {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* File Upload Section */}
+      <div className="mb-6 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <label className="block cursor-pointer">
+          {/* Hidden file input */}
+          <input
+            type="file"
+            accept=".txt,.md"
+            onChange={handleFileUpload}
+            disabled={isUploading}
+            className="hidden"
+          />
+
+          {/* Visible upload area */}
+          <div className="p-4">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <FilePlus size={20} weight="regular" className="text-primary-600 dark:text-primary-400" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Upload File
+                </span>
+              </div>
+              {isUploading && (
+                <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
+
+            {/* Drop zone */}
+            <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+              isUploading
+                ? 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800'
+                : 'border-gray-300 dark:border-gray-600 hover:border-primary-500 dark:hover:border-primary-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}>
+              {isUploading ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {uploadProgress}
+                  </p>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div className="bg-primary-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Click to browse or drag and drop
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    .txt or .md files only • Maximum 5 MB
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Info text */}
+            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+              <strong>.txt</strong> files create one memory. <strong>.md</strong> files split by headings into multiple memories.
+            </p>
+          </div>
+        </label>
       </div>
 
       {/* Search and View Toggle */}

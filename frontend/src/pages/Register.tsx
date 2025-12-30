@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { FiMail, FiLock } from 'react-icons/fi';
+import { Envelope, Lock, ArrowRight, CircleNotch } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Register() {
@@ -33,49 +33,59 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gradient-to-br from-primary-400 to-primary-600">
-      <div className="flex-1 flex items-center justify-center py-8 px-4 md:p-8">
-        <div className="text-center md:text-left">
-          <h1 className="text-3xl md:text-4xl lg:text-6xl font-bold text-white dark:text-black">
-            Join the magic
-          </h1>
-          <p className="text-lg md:text-xl lg:text-2xl text-white/80 mt-4 dark:text-black">
-            Start organizing your tasks today ✨
-          </p>
-        </div>
-      </div>
-
-      <div className="flex-1 flex items-center justify-center bg-white dark:bg-black p-4 md:p-8">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-surface-light dark:bg-surface-dark">
+      {/* Left Side - Branding */}
+      <div className="flex-1 flex items-center justify-center py-12 px-6 lg:px-12 bg-gradient-to-br from-primary-400/10 via-primary-500/5 to-secondary-500/10 dark:from-primary-900/20 dark:via-primary-800/10 dark:to-secondary-900/20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md space-y-6 md:space-y-8"
+          transition={{ duration: 0.5 }}
+          className="max-w-md text-center lg:text-left"
         >
-          <div className="text-center">
-            <div className="flex justify-center">
-              <img 
-                src="/logo.png" 
-                alt="Logo" 
-                className="h-10 w-10 md:h-12 md:w-12"
-              />
+          <div className="flex justify-center lg:justify-start mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center shadow-float">
+              <span className="text-white text-2xl font-bold">M</span>
             </div>
-            <h2 className="mt-4 text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-              Create Account
-            </h2>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Start your productivity journey
-            </p>
           </div>
+          <h1 className="text-4xl lg:text-5xl xl:text-6xl font-heading text-gray-900 dark:text-white mb-4">
+            Meet your AI Thought Partner
+          </h1>
+          <p className="text-lg lg:text-xl text-gray-600 dark:text-gray-400">
+            Start capturing memories and asking questions today ✨
+          </p>
+        </motion.div>
+      </div>
 
-          <form className="mt-6 md:mt-8 space-y-4 md:space-y-6" onSubmit={handleSubmit}>
-            <div className="rounded-md shadow-sm space-y-4">
+      {/* Right Side - Register Form */}
+      <div className="flex-1 flex items-center justify-center py-12 px-6 lg:px-12">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="w-full max-w-md"
+        >
+          {/* Glass Card */}
+          <div className="bg-white/70 dark:bg-surface-dark-elevated/70 backdrop-blur-glass rounded-2xl shadow-float border border-white/50 dark:border-gray-800/30 p-8">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-heading text-gray-900 dark:text-white mb-2">
+                Create Account
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Start your productivity journey
+              </p>
+            </div>
+
+            {/* Form */}
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              {/* Email Input */}
               <div>
-                <label htmlFor="email" className="sr-only">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Email address
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiMail className="h-5 w-5 text-gray-400" />
+                    <Envelope size={20} weight="regular" className="text-gray-400" />
                   </div>
                   <input
                     id="email"
@@ -85,19 +95,20 @@ export default function Register() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="appearance-none relative block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm dark:bg-black"
-                    placeholder="Email address"
+                    className="w-full pl-10 pr-4 py-3 bg-white dark:bg-surface-dark-muted border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                    placeholder="you@example.com"
                   />
                 </div>
               </div>
 
+              {/* Password Input */}
               <div>
-                <label htmlFor="password" className="sr-only">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Password
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiLock className="h-5 w-5 text-gray-400" />
+                    <Lock size={20} weight="regular" className="text-gray-400" />
                   </div>
                   <input
                     id="password"
@@ -107,19 +118,20 @@ export default function Register() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="appearance-none relative block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm dark:bg-black"
-                    placeholder="Password"
+                    className="w-full pl-10 pr-4 py-3 bg-white dark:bg-surface-dark-muted border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                    placeholder="Create a password"
                   />
                 </div>
               </div>
 
+              {/* Confirm Password Input */}
               <div>
-                <label htmlFor="confirm-password" className="sr-only">
+                <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Confirm Password
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiLock className="h-5 w-5 text-gray-400" />
+                    <Lock size={20} weight="regular" className="text-gray-400" />
                   </div>
                   <input
                     id="confirm-password"
@@ -128,36 +140,45 @@ export default function Register() {
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="appearance-none relative block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm dark:bg-black"
-                    placeholder="Confirm password"
+                    className="w-full pl-10 pr-4 py-3 bg-white dark:bg-surface-dark-muted border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                    placeholder="Confirm your password"
                   />
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-between">
-              <div className="text-sm">
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium shadow-subtle hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              >
+                {loading ? (
+                  <>
+                    <CircleNotch size={20} weight="regular" className="animate-spin" />
+                    <span>Creating account...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Create Account</span>
+                    <ArrowRight size={20} weight="regular" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Footer Link */}
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Already have an account?{' '}
                 <Link
                   to="/login"
-                  className="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400"
+                  className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
                 >
-                  Already have an account? Sign in
+                  Sign in
                 </Link>
-              </div>
+              </p>
             </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin"></div>
-              ) : (
-                'Create Account'
-              )}
-            </button>
-          </form>
+          </div>
         </motion.div>
       </div>
     </div>
