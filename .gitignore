@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 frontend/node_modules/
+landing/
 
 # Build outputs
 frontend/dist/

@@ -6,7 +6,7 @@ import { List } from '@phosphor-icons/react';
 export default function Layout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
-  const isUnifiedPage = location.pathname === '/unified';
+  const isUnifiedPage = location.pathname === '/';
 
   return (
     <div className={`min-h-screen bg-background-light dark:bg-background-dark ${isUnifiedPage ? '' : 'p-3 lg:p-4'}`}>
