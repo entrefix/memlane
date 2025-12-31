@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion';
-import { BookmarkSimple, CheckSquare } from '@phosphor-icons/react';
 import type { Memory, Todo, RAGSearchResult } from '../types';
 
 interface UnifiedCardProps {
@@ -62,22 +61,15 @@ export default function UnifiedCard({ item, type, onClick }: UnifiedCardProps) {
           </div>
         </div>
       )}
-      <div className="flex items-start gap-2 mb-2">
-        {type === 'memory' ? (
-          <BookmarkSimple size={18} weight="regular" className="text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-        ) : (
-          <CheckSquare size={18} weight="regular" className="text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+      <div className="mb-2">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-3 mb-1">
+          {title}
+        </h3>
+        {summary && (
+          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-6">
+            {summary}
+          </p>
         )}
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-3 mb-1">
-            {title}
-          </h3>
-          {summary && (
-            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-6">
-              {summary}
-            </p>
-          )}
-        </div>
       </div>
       {isCitation && (
         <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">

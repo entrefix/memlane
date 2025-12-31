@@ -1,4 +1,4 @@
-# Mr.Brain - Memories App
+# memlane - Memories App
 
 A personal productivity application with AI-powered task management and a smart memories/notes system.
 

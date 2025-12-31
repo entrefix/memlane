@@ -12,6 +12,14 @@ function Hero() {
           transition={{ duration: 0.6 }}
           className="text-center"
         >
+          <motion.img
+            src="/peek.png"
+            alt="Peek"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="mx-auto mb-0 max-w-xs md:max-w-sm"
+          />
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading text-gray-900 dark:text-white mb-6 leading-tight">
             I've been forgetting important things for years
           </h1>
@@ -21,7 +29,7 @@ function Hero() {
           </p>
           
           <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-xl mx-auto">
-            So I built Mr.Brain. It's my second brain – everything I capture gets organized, indexed, and searchable. 
+            So I built memlane. It's my second brain – everything I capture gets organized, indexed, and searchable. 
             I can ask it questions. It remembers what I forget.
           </p>
 
@@ -154,7 +162,7 @@ function SolutionSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="mt-12"
+            className="mt-12 flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
             <Link
               to="/register"
@@ -163,6 +171,24 @@ function SolutionSection() {
               <span>Try it</span>
               <ArrowRight size={24} weight="regular" />
             </Link>
+            <a
+              href="https://github.com/entrefix/mrbrain"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-lg px-8 py-4 font-medium text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors border border-gray-300 dark:border-gray-700 rounded-lg hover:border-primary-500 dark:hover:border-primary-500"
+            >
+              <svg 
+                height="24" 
+                width="24" 
+                viewBox="0 0 24 24" 
+                fill="currentColor"
+                aria-hidden="true"
+                className="w-6 h-6"
+              >
+                <path d="M12 1C5.923 1 1 5.923 1 12c0 4.867 3.149 8.979 7.521 10.436.55.096.756-.233.756-.522 0-.262-.013-1.128-.013-2.049-2.764.509-3.479-.674-3.699-1.292-.124-.317-.66-1.293-1.127-1.554-.385-.207-.936-.715-.014-.729.866-.014 1.485.797 1.691 1.128.99 1.663 2.571 1.196 3.204.907.096-.715.385-1.196.701-1.471-2.448-.275-5.005-1.224-5.005-5.432 0-1.196.426-2.186 1.128-2.956-.111-.275-.496-1.402.11-2.915 0 0 .921-.288 3.024 1.128a10.193 10.193 0 0 1 2.75-.371c.936 0 1.871.123 2.75.371 2.104-1.43 3.025-1.128 3.025-1.128.605 1.513.221 2.64.111 2.915.701.77 1.127 1.747 1.127 2.956 0 4.222-2.571 5.157-5.019 5.432.399.344.743 1.004.743 2.035 0 1.471-.014 2.654-.014 3.025 0 .289.206.632.756.522C19.851 20.979 23 16.854 23 12c0-6.077-4.922-11-11-11Z"></path>
+              </svg>
+              <span>Contribute</span>
+            </a>
           </motion.div>
         </motion.div>
       </div>
@@ -184,15 +210,15 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto text-center">
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">M</span>
+              <img src="/logo-white.png" alt="Mr.Brain" className="w-6 h-6" />
             </div>
-            <span className="text-lg font-heading text-gray-900 dark:text-white">Mr.Brain</span>
+            <span className="text-lg font-heading text-gray-900 dark:text-white">memlane</span>
           </div>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
             Your second brain for 2026. Never forget another idea.
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-500">
-            © 2026 Mr.Brain. Built to help you remember what matters.
+            © 2026 memlane. Built to help you remember what matters.
           </p>
         </div>
       </footer>

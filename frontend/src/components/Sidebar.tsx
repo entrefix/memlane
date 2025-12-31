@@ -36,9 +36,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="p-6 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
-            <span className="text-white text-sm font-bold">M</span>
+            <img src="/logo-white.png" alt="Mr.Brain" className="w-6 h-6" />
           </div>
-          <h1 className="text-xl font-heading text-gray-800 dark:text-white">Mr. Brain</h1>
+                  <h1 className="text-xl font-heading text-gray-800 dark:text-white">memlane</h1>
         </div>
         <button
           onClick={onClose}

@@ -401,9 +401,9 @@ export default function Unified() {
       className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
     >
       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
-        <span className="text-white text-sm font-bold">M</span>
+        <img src="/logo-white.png" alt="Mr.Brain" className="w-6 h-6" />
       </div>
-      <span className="text-xl font-heading text-gray-800 dark:text-white hidden sm:inline">Mr. Brain</span>
+      <span className="text-xl font-heading text-gray-800 dark:text-white hidden sm:inline">memlane</span>
     </button>
   );
 

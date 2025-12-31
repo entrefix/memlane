@@ -26,7 +26,7 @@
 
 ### Purpose
 
-This document provides a comprehensive guide for implementing a benchmark suite to measure and optimize the RAG (Retrieval Augmented Generation) system used for memory search and retrieval in the Mr.Brain application.
+This document provides a comprehensive guide for implementing a benchmark suite to measure and optimize the RAG (Retrieval Augmented Generation) system used for memory search and retrieval in the memlane application.
 
 ### Goals
 
