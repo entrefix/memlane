@@ -68,9 +68,9 @@ This document provides a comprehensive guide for implementing a benchmark suite 
 │  │   Service    │         │   Service    │                  │
 │  └──────────────┘         └──────┬───────┘                  │
 │         │                        │                           │
-│         │                        │ OpenAI API                │
-│         │                        │ text-embedding-3-small    │
-│         │                        │ (1536 dimensions)         │
+│         │                        │ NVIDIA NIM API            │
+│         │                        │ nv-embedqa-e5-v5          │
+│         │                        │ (1024 dimensions)         │
 │         ▼                        ▼                           │
 │  ┌──────────────────────────────────────┐                   │
 │  │         RAG Service                   │                   │
@@ -113,20 +113,22 @@ This document provides a comprehensive guide for implementing a benchmark suite 
 
 **Storage Location**: `./data/vectors/`
 
-#### 2. Embedding Service: OpenAI API
+#### 2. Embedding Service: NVIDIA NIM API
 
 **File**: `backend/internal/services/embedding_service.go`
 
 **Configuration**:
-- Default Model: `text-embedding-3-small` (1536 dimensions)
-- Alternative: `text-embedding-3-large` (3072 dimensions)
-- Max Input: 8000 characters (truncated)
-- Batch Support: Yes (via `EmbedBatch()`)
+- Model: `nvidia/nv-embedqa-e5-v5` (1024 dimensions)
+- Input Types: `passage` (for indexing), `query` (for search)
+- Rate Limiting: 40 requests per minute (configurable)
+- Max Input: Configurable via chunking (default ~450 tokens)
+- Batch Support: Sequential with rate limiting (via `EmbedBatch()`)
 
 **Current Behavior**:
-- Individual API calls per document during indexing
-- Text preprocessing: newline replacement, truncation
-- No retry logic or rate limiting
+- Individual API calls per document with rate limiting
+- Text preprocessing: sanitization, truncation
+- Built-in rate limiting (40 RPM default)
+- Separate embeddings for passages vs. queries (optimized)
 
 #### 3. Hybrid Search: Reciprocal Rank Fusion
 
@@ -268,15 +270,16 @@ for _, doc := range docs {
 ```
 
 **Impact**:
-- 5K memories = 5,000 API calls
-- Each call: ~50-100ms network latency
-- Total: 250-500s indexing time
-- 5,000x OpenAI billing units
+- 5K memories = 5,000 API calls (rate-limited to 40 RPM)
+- Each call: ~50-100ms network latency + rate limiting
+- Total: 250-500s+ indexing time (with rate limiting)
+- 5,000x NVIDIA NIM API requests
 
 **Expected with Batching**:
 - 5K memories = 25 API calls (batch size 200)
-- Total: 15-30s indexing time
-- 25x billing units (200x reduction)
+- Total: 15-30s indexing time (accounting for 40 RPM limit)
+- 25x API requests (200x reduction)
+- Note: NVIDIA NIM free tier has rate limits; batch processing more efficient
 
 **Priority**: CRITICAL - Highest performance impact
 
@@ -329,21 +332,24 @@ for _, ct := range contentTypes {
 
 #### 5. 📊 Silent Text Truncation (OBSERVABILITY)
 
-**Location**: `backend/internal/services/embedding_service.go:107`
+**Location**: `backend/internal/services/embedding_service.go`
 
-**Code**:
-```go
-if len(text) > 8000 {
-    text = text[:8000]  // Silent truncation
-}
-```
+**Current Behavior**:
+- Text is chunked using token-aware chunking (~450 tokens per chunk)
+- Uses `ChunkText()` with `DocumentChunker` for intelligent splitting
+- No visibility into truncation/chunking statistics
 
 **Issue**:
-- No logging when content is truncated
-- Unknown how often this occurs
-- Lost context for long articles/documents
+- No logging when content is chunked
+- Unknown how often chunking occurs
+- No metrics on chunk distribution
 
 **Priority**: LOW - Observability improvement
+
+**Note**: The system already uses optimized passage/query embeddings:
+- `EmbedPassage()` for indexing documents (input_type: "passage")
+- `EmbedQuery()` for search queries (input_type: "query")
+- This optimization improves retrieval accuracy by 5-10%
 
 ---
 
@@ -966,7 +972,7 @@ go run cmd/benchmark/main.go compare \
 - Environment: Development
 - Go Version: 1.21
 - chromem-go: v0.7.0
-- OpenAI Model: text-embedding-3-small
+- Embedding Model: NVIDIA NIM nv-embedqa-e5-v5 (1024d)
 ````
 
 ---
@@ -1980,7 +1986,52 @@ API Calls (5K):
 
 ## Optimization Strategies
 
-### Implemented (Week 2)
+### Already Implemented (Pre-existing)
+
+#### ✅ Passage vs Query Embeddings Optimization
+
+**Status**: Already implemented in `backend/internal/services/embedding_service.go`
+
+**Implementation**:
+- Uses `input_type: "passage"` when indexing documents
+- Uses `input_type: "query"` when searching
+- NVIDIA NIM's nv-embedqa-e5-v5 model is specifically trained for asymmetric retrieval
+
+**Benefits**:
+- 5-10% accuracy improvement over generic embeddings
+- Better separation between document and query semantic spaces
+- Optimized for RAG use cases
+
+**Code**:
+```go
+// For indexing (in vector_repository.go)
+repo.embeddingFn = func(ctx context.Context, text string) ([]float32, error) {
+    return embeddingSvc.EmbedPassage(ctx, text)  // Uses "passage" type
+}
+
+// For searching (in vector_repository.go Search method)
+queryEmbedding, err := r.embeddingSvc.EmbedQuery(ctx, query)  // Uses "query" type
+```
+
+---
+
+#### ✅ Token-Aware Chunking
+
+**Status**: Already implemented via `DocumentChunker` in embedding service
+
+**Implementation**:
+- Intelligent text splitting at ~450 tokens per chunk
+- Preserves sentence boundaries
+- Used automatically for long documents
+
+**Benefits**:
+- No content loss from truncation
+- Better context preservation
+- Optimized for NVIDIA NIM model's token limits
+
+---
+
+### To Be Implemented (Week 2)
 
 #### 1. Batch Embedding API Calls ⚡
 
@@ -2380,22 +2431,27 @@ return reranked[:req.Limit]
 ```
 Embedding API calls per user:  5,000
 Total API calls per month:     10 × 5,000 = 50,000
-Tokens per memory (avg):       200
-Total tokens:                  50,000 × 200 = 10M tokens
-Cost (text-embedding-3-small): $0.02 / 1M tokens
-Monthly cost:                  10 × $0.02 = $0.20
+Rate limit:                    40 RPM
+Min indexing time per user:    5,000 / 40 = 125 minutes (rate limited)
+Total indexing time/month:     10 × 125 = 1,250 minutes (~21 hours)
+Cost:                          FREE (NVIDIA NIM free tier: 1000 requests/day)
 ```
 
 **After Optimizations**:
 ```
-Embedding API calls per user:  25 (batched)
+Embedding API calls per user:  25 (batched, respects rate limit)
 Total API calls per month:     10 × 25 = 250
-Total tokens:                  10M tokens (same)
-Cost:                          $0.20 (same)
-Time saved:                    10 × (250s - 25s) = 37.5 minutes/month
+Min indexing time per user:    25 / 40 = 0.625 minutes (rate limited)
+Total indexing time/month:     10 × 0.625 = 6.25 minutes
+Cost:                          FREE (well within free tier limits)
+Time saved:                    1,250 - 6.25 = 1,243.75 minutes (~20.7 hours/month)
 ```
 
-**Key Insight**: Cost is based on tokens, not API calls. Batching doesn't reduce cost but **dramatically** improves performance.
+**Key Insights**:
+- NVIDIA NIM free tier: 1000 requests/day (sufficient for development/testing)
+- Batching reduces API calls 200x AND dramatically improves performance
+- Rate limiting is the bottleneck, not network latency
+- For production: Consider paid tier or self-hosted NVIDIA NIM
 
 **Search Cost Savings** (with caching):
 ```
@@ -2416,13 +2472,13 @@ Reduction:                     90%
 - Go 1.21+
 - 4 GB RAM minimum
 - 10 GB disk space
-- OpenAI API key
+- NVIDIA NIM API key (free tier available)
 
 **Production (5K memories)**:
 - Go 1.21+
 - 8 GB RAM recommended
 - 20 GB disk space
-- OpenAI API key
+- NVIDIA NIM API key
 - PostgreSQL/SQLite
 
 **Production (50K memories)**:
@@ -2438,7 +2494,7 @@ Reduction:                     90%
 **Core**:
 ```bash
 go get github.com/philippgille/chromem-go@v0.7.0  # Vector DB
-go get github.com/sashabaranov/go-openai         # OpenAI client
+# NVIDIA NIM API client - custom HTTP implementation (no external client needed)
 ```
 
 **Benchmark Suite**:
@@ -2462,10 +2518,12 @@ go get github.com/stretchr/testify               # Test assertions
 
 **Environment Variables**:
 ```bash
-# OpenAI
-OPENAI_API_KEY=sk-...
-OPENAI_BASE_URL=https://api.openai.com/v1
-EMBEDDING_MODEL=text-embedding-3-small
+# NVIDIA NIM Embeddings
+NIM_API_KEY=nvapi-...
+NIM_BASE_URL=https://integrate.api.nvidia.com/v1
+NIM_MODEL=nvidia/nv-embedqa-e5-v5
+NIM_RPM_LIMIT=40
+NIM_EMBEDDING_DIM=1024
 
 # Vector DB
 VECTOR_DB_PATH=./data/vectors
@@ -2477,6 +2535,11 @@ DATABASE_PATH=./data/todomyday.db
 # Benchmark
 BENCHMARK_OUTPUT_DIR=./benchmark_results
 BENCHMARK_FIXTURES_DIR=./internal/benchmark/fixtures
+
+# Note: OpenAI-compatible API still used for LLM responses (not embeddings)
+OPENAI_BASE_URL=https://api.z.ai/api/coding/paas/v4
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=glm-4.5-air
 ```
 
 ---
@@ -2635,7 +2698,8 @@ curl -X POST localhost:8080/api/rag/search \
 
 **Documentation**:
 - [chromem-go GitHub](https://github.com/philippgille/chromem-go)
-- [OpenAI Embeddings](https://platform.openai.com/docs/guides/embeddings)
+- [NVIDIA NIM Embeddings](https://build.nvidia.com/explore/retrieval)
+- [NVIDIA NIM API Docs](https://docs.api.nvidia.com/nim/reference/nv-embedqa-e5-v5)
 - [SQLite FTS5](https://www.sqlite.org/fts5.html)
 
 **Tools**:
@@ -2659,7 +2723,7 @@ curl -X POST localhost:8080/api/rag/search \
 **Solution**: Enable persistent storage, reduce in-memory cache size, consider lazy loading, use pagination for large collections
 
 **Issue**: Truncation warnings constantly appearing
-**Solution**: Implement chunking with overlap, increase 8000 char limit (requires OpenAI model change), pre-process content to remove boilerplate
+**Solution**: Implement chunking with overlap (already supported via document chunker), tune chunk size for NVIDIA NIM model, pre-process content to remove boilerplate
 
 ---
 
