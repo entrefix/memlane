@@ -27,7 +27,7 @@ import {
   Trophy,
   ChatCircle,
   Folder,
-  FilePlus,
+  Paperclip,
 } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
 import { memoryApi } from '../api';
@@ -192,18 +192,20 @@ export default function Memories() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Client-side validation
-    const maxSize = 5 * 1024 * 1024; // 5 MB
+    // Get file extension
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+    // Client-side validation - size limits
+    const maxSize = ext === '.pdf' ? 20 * 1024 * 1024 : 10 * 1024 * 1024; // 20MB for PDF, 10MB for others
     if (file.size > maxSize) {
-      toast.error('File too large. Maximum size is 5 MB.');
+      toast.error(`File too large. Maximum size is ${ext === '.pdf' ? '20' : '10'} MB.`);
       e.target.value = ''; // Clear input
       return;
     }
 
-    const validTypes = ['.txt', '.md'];
-    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    const validTypes = ['.txt', '.md', '.pdf', '.json'];
     if (!validTypes.includes(ext)) {
-      toast.error('Invalid file type. Only .txt and .md files are supported.');
+      toast.error('Invalid file type. Supported: .txt, .md, .pdf, .json');
       e.target.value = ''; // Clear input
       return;
     }
@@ -531,68 +533,6 @@ export default function Memories() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-
-      {/* File Upload Section */}
-      <div className="mb-6 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <label className="block cursor-pointer">
-          {/* Hidden file input */}
-          <input
-            type="file"
-            accept=".txt,.md"
-            onChange={handleFileUpload}
-            disabled={isUploading}
-            className="hidden"
-          />
-
-          {/* Visible upload area */}
-          <div className="p-4">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <FilePlus size={20} weight="regular" className="text-primary-600 dark:text-primary-400" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Upload File
-                </span>
-              </div>
-              {isUploading && (
-                <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-              )}
-            </div>
-
-            {/* Drop zone */}
-            <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-              isUploading
-                ? 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800'
-                : 'border-gray-300 dark:border-gray-600 hover:border-primary-500 dark:hover:border-primary-400 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}>
-              {isUploading ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {uploadProgress}
-                  </p>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div className="bg-primary-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Click to browse or drag and drop
-                  </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
-                    .txt or .md files only • Maximum 5 MB
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Info text */}
-            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-              <strong>.txt</strong> files create one memory. <strong>.md</strong> files split by headings into multiple memories.
-            </p>
-          </div>
-        </label>
       </div>
 
       {/* Search and View Toggle */}
@@ -954,6 +894,32 @@ export default function Memories() {
                 />
               </div>
 
+              {/* File Upload Button */}
+              <label className="flex-shrink-0 cursor-pointer group relative">
+                <input
+                  type="file"
+                  accept=".txt,.md,.pdf,.json"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className="hidden"
+                />
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  isUploading 
+                    ? 'bg-primary-100 dark:bg-primary-900/30' 
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}>
+                  {isUploading ? (
+                    <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Paperclip size={18} weight="regular" className="text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
+                  )}
+                </div>
+                {/* Tooltip */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  Upload file (.txt, .md, .pdf, .json)
+                </div>
+              </label>
+
               {/* Submit button */}
               <button
                 type="submit"
@@ -963,6 +929,18 @@ export default function Memories() {
                 Add
               </button>
             </div>
+
+            {/* Upload progress bar */}
+            {isUploading && uploadProgress && (
+              <div className="px-3 pb-3">
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <span>{uploadProgress}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                  <div className="bg-primary-600 h-1 rounded-full animate-pulse" style={{ width: '60%' }} />
+                </div>
+              </div>
+            )}
           </form>
         </div>
       </div>

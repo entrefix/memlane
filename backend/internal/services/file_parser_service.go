@@ -1,9 +1,15 @@
 package services
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/ledongthuc/pdf"
 )
 
 // FileParserService handles parsing of uploaded files
@@ -14,6 +20,14 @@ type ParsedMemorySection struct {
 	Content string // The text content
 	Heading string // For MD: the heading text, for TXT: filename
 	Order   int    // Position in original file (for sorting)
+}
+
+// FileMetadata contains metadata about parsed files
+type FileMetadata struct {
+	PageCount      int `json:"page_count,omitempty"`
+	ExtractedChars int `json:"extracted_chars,omitempty"`
+	KeyCount       int `json:"key_count,omitempty"`
+	ItemCount      int `json:"item_count,omitempty"`
 }
 
 // FileUploadError represents errors during file upload/parsing
@@ -27,9 +41,14 @@ func (e *FileUploadError) Error() string {
 }
 
 const (
-	// MaxFileSize is the maximum allowed file size (5 MB)
-	MaxFileSize = 5 * 1024 * 1024
+	// MaxFileSize is the maximum allowed file size (10 MB)
+	MaxFileSize = 10 * 1024 * 1024
+	// MaxPDFFileSize is the maximum allowed PDF file size (20 MB)
+	MaxPDFFileSize = 20 * 1024 * 1024
 )
+
+// AllowedFileTypes lists the supported file extensions
+var AllowedFileTypes = []string{".txt", ".md", ".pdf", ".json"}
 
 // NewFileParserService creates a new FileParserService
 func NewFileParserService() *FileParserService {
@@ -38,20 +57,33 @@ func NewFileParserService() *FileParserService {
 
 // ValidateFile checks if the file type and size are valid
 func (s *FileParserService) ValidateFile(filename string, size int64) error {
-	// Check file size
-	if size > MaxFileSize {
+	ext := strings.ToLower(filepath.Ext(filename))
+
+	// Check file type
+	isValid := false
+	for _, allowed := range AllowedFileTypes {
+		if ext == allowed {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
 		return &FileUploadError{
-			Code:    "too_large",
-			Message: "File exceeds 5MB limit",
+			Code:    "invalid_type",
+			Message: fmt.Sprintf("Only %s files allowed", strings.Join(AllowedFileTypes, ", ")),
 		}
 	}
 
-	// Check file type
-	ext := strings.ToLower(filepath.Ext(filename))
-	if ext != ".txt" && ext != ".md" {
+	// Check file size (PDFs get larger limit)
+	maxSize := int64(MaxFileSize)
+	if ext == ".pdf" {
+		maxSize = MaxPDFFileSize
+	}
+
+	if size > maxSize {
 		return &FileUploadError{
-			Code:    "invalid_type",
-			Message: "Only .txt and .md files allowed",
+			Code:    "too_large",
+			Message: fmt.Sprintf("File exceeds %dMB limit", maxSize/(1024*1024)),
 		}
 	}
 
@@ -61,13 +93,17 @@ func (s *FileParserService) ValidateFile(filename string, size int64) error {
 // GetFileType returns the file extension
 func (s *FileParserService) GetFileType(filename string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(filename))
-	if ext != ".txt" && ext != ".md" {
-		return "", &FileUploadError{
-			Code:    "invalid_type",
-			Message: "Only .txt and .md files allowed",
+
+	for _, allowed := range AllowedFileTypes {
+		if ext == allowed {
+			return ext, nil
 		}
 	}
-	return ext, nil
+
+	return "", &FileUploadError{
+		Code:    "invalid_type",
+		Message: fmt.Sprintf("Only %s files allowed", strings.Join(AllowedFileTypes, ", ")),
+	}
 }
 
 // ParseFile parses a file and returns sections based on file type
@@ -82,10 +118,14 @@ func (s *FileParserService) ParseFile(filename string, content []byte) ([]Parsed
 		return s.parseTxtFile(filename, content)
 	case ".md":
 		return s.parseMarkdownFile(filename, content)
+	case ".pdf":
+		return s.parsePDFFile(filename, content)
+	case ".json":
+		return s.parseJSONFile(filename, content)
 	default:
 		return nil, &FileUploadError{
 			Code:    "invalid_type",
-			Message: "Only .txt and .md files allowed",
+			Message: fmt.Sprintf("Only %s files allowed", strings.Join(AllowedFileTypes, ", ")),
 		}
 	}
 }
@@ -158,15 +198,15 @@ func (s *FileParserService) parseMarkdownFile(filename string, content []byte) (
 			contentEnd = len(text)
 		}
 
-		content := strings.TrimSpace(text[contentStart:contentEnd])
+		sectionContent := strings.TrimSpace(text[contentStart:contentEnd])
 
 		// Skip empty sections
-		if content == "" {
+		if sectionContent == "" {
 			continue
 		}
 
 		sections = append(sections, ParsedMemorySection{
-			Content: content,
+			Content: sectionContent,
 			Heading: headingText,
 			Order:   i,
 		})
@@ -181,4 +221,301 @@ func (s *FileParserService) parseMarkdownFile(filename string, content []byte) (
 	}
 
 	return sections, nil
+}
+
+// parsePDFFile extracts text from a PDF document
+func (s *FileParserService) parsePDFFile(filename string, content []byte) ([]ParsedMemorySection, error) {
+	// Create a reader from the byte content
+	reader := bytes.NewReader(content)
+
+	// Parse PDF
+	pdfReader, err := pdf.NewReader(reader, int64(len(content)))
+	if err != nil {
+		return nil, &FileUploadError{
+			Code:    "parse_error",
+			Message: fmt.Sprintf("Failed to parse PDF: %v", err),
+		}
+	}
+
+	var textParts []string
+	numPages := pdfReader.NumPage()
+
+	for pageNum := 1; pageNum <= numPages; pageNum++ {
+		page := pdfReader.Page(pageNum)
+		if page.V.IsNull() {
+			continue
+		}
+
+		text, err := page.GetPlainText(nil)
+		if err != nil {
+			continue // Skip pages that fail to extract
+		}
+
+		text = strings.TrimSpace(text)
+		if text != "" {
+			// Clean the page text
+			text = s.cleanPDFPageText(text)
+			if text != "" {
+				textParts = append(textParts, text)
+			}
+		}
+	}
+
+	if len(textParts) == 0 {
+		return nil, &FileUploadError{
+			Code:    "empty_file",
+			Message: "Could not extract text from PDF",
+		}
+	}
+
+	// Join all pages with double newlines
+	fullText := strings.Join(textParts, "\n\n")
+
+	// For very large PDFs, split into multiple sections (one per ~5 pages)
+	// to avoid overwhelming the AI processing
+	const maxCharsPerSection = 10000
+	sections := []ParsedMemorySection{}
+
+	if len(fullText) <= maxCharsPerSection {
+		sections = append(sections, ParsedMemorySection{
+			Content: fullText,
+			Heading: fmt.Sprintf("%s (PDF)", filename),
+			Order:   0,
+		})
+	} else {
+		// Split into chunks
+		chunks := s.splitTextIntoChunks(fullText, maxCharsPerSection)
+		for i, chunk := range chunks {
+			sections = append(sections, ParsedMemorySection{
+				Content: chunk,
+				Heading: fmt.Sprintf("%s (Part %d)", filename, i+1),
+				Order:   i,
+			})
+		}
+	}
+
+	return sections, nil
+}
+
+// cleanPDFPageText cleans extracted text from PDF artifacts
+func (s *FileParserService) cleanPDFPageText(text string) string {
+	lines := strings.Split(text, "\n")
+	var cleanedLines []string
+
+	pageNumRegex := regexp.MustCompile(`^\d{1,3}$`)
+	separatorRegex := regexp.MustCompile(`^[\-–—=_\.]+$`)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Remove standalone numbers (likely page numbers)
+		if pageNumRegex.MatchString(line) {
+			continue
+		}
+
+		// Remove lines that are just symbols/separators
+		if separatorRegex.MatchString(line) {
+			continue
+		}
+
+		cleanedLines = append(cleanedLines, line)
+	}
+
+	// Join lines, preserving paragraph structure
+	var result []string
+	var currentPara []string
+
+	for _, line := range cleanedLines {
+		// Check if line ends with sentence-ending punctuation
+		if len(line) > 0 && strings.ContainsAny(string(line[len(line)-1]), ".!?:") {
+			currentPara = append(currentPara, line)
+			result = append(result, strings.Join(currentPara, " "))
+			currentPara = nil
+		} else {
+			currentPara = append(currentPara, line)
+		}
+	}
+
+	if len(currentPara) > 0 {
+		result = append(result, strings.Join(currentPara, " "))
+	}
+
+	return strings.Join(result, "\n\n")
+}
+
+// splitTextIntoChunks splits text into chunks of approximately maxSize characters
+func (s *FileParserService) splitTextIntoChunks(text string, maxSize int) []string {
+	var chunks []string
+
+	// Split by double newlines (paragraphs)
+	paragraphs := strings.Split(text, "\n\n")
+
+	var currentChunk strings.Builder
+	for _, para := range paragraphs {
+		para = strings.TrimSpace(para)
+		if para == "" {
+			continue
+		}
+
+		// If adding this paragraph would exceed limit, save current chunk
+		if currentChunk.Len()+len(para)+2 > maxSize && currentChunk.Len() > 0 {
+			chunks = append(chunks, strings.TrimSpace(currentChunk.String()))
+			currentChunk.Reset()
+		}
+
+		if currentChunk.Len() > 0 {
+			currentChunk.WriteString("\n\n")
+		}
+		currentChunk.WriteString(para)
+	}
+
+	if currentChunk.Len() > 0 {
+		chunks = append(chunks, strings.TrimSpace(currentChunk.String()))
+	}
+
+	return chunks
+}
+
+// parseJSONFile parses JSON and converts to readable text
+func (s *FileParserService) parseJSONFile(filename string, content []byte) ([]ParsedMemorySection, error) {
+	var data interface{}
+	if err := json.Unmarshal(content, &data); err != nil {
+		return nil, &FileUploadError{
+			Code:    "parse_error",
+			Message: fmt.Sprintf("Invalid JSON: %v", err),
+		}
+	}
+
+	// Convert JSON to readable text
+	text := s.jsonToText(data, "")
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return nil, &FileUploadError{
+			Code:    "empty_file",
+			Message: "JSON file contains no data",
+		}
+	}
+
+	return []ParsedMemorySection{
+		{
+			Content: text,
+			Heading: fmt.Sprintf("%s (JSON)", filename),
+			Order:   0,
+		},
+	}, nil
+}
+
+// jsonToText recursively converts JSON to readable text
+func (s *FileParserService) jsonToText(data interface{}, prefix string) string {
+	var parts []string
+
+	switch v := data.(type) {
+	case map[string]interface{}:
+		for key, value := range v {
+			keyPath := key
+			if prefix != "" {
+				keyPath = prefix + "." + key
+			}
+
+			switch val := value.(type) {
+			case map[string]interface{}, []interface{}:
+				parts = append(parts, fmt.Sprintf("%s:", keyPath))
+				parts = append(parts, s.jsonToText(val, keyPath))
+			default:
+				parts = append(parts, fmt.Sprintf("%s: %v", keyPath, val))
+			}
+		}
+
+	case []interface{}:
+		for i, item := range v {
+			itemPrefix := fmt.Sprintf("[%d]", i)
+			if prefix != "" {
+				itemPrefix = prefix + itemPrefix
+			}
+
+			switch val := item.(type) {
+			case map[string]interface{}, []interface{}:
+				parts = append(parts, s.jsonToText(val, itemPrefix))
+			default:
+				parts = append(parts, fmt.Sprintf("%s: %v", itemPrefix, val))
+			}
+		}
+
+	default:
+		parts = append(parts, fmt.Sprintf("%v", v))
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+// GetFileMetadata returns metadata about a parsed file
+func (s *FileParserService) GetFileMetadata(filename string, content []byte) (*FileMetadata, error) {
+	fileType, err := s.GetFileType(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	metadata := &FileMetadata{}
+
+	switch fileType {
+	case ".pdf":
+		reader := bytes.NewReader(content)
+		pdfReader, err := pdf.NewReader(reader, int64(len(content)))
+		if err == nil {
+			metadata.PageCount = pdfReader.NumPage()
+		}
+
+	case ".json":
+		var data interface{}
+		if err := json.Unmarshal(content, &data); err == nil {
+			switch v := data.(type) {
+			case map[string]interface{}:
+				metadata.KeyCount = len(v)
+			case []interface{}:
+				metadata.ItemCount = len(v)
+			}
+		}
+	}
+
+	// Parse to get extracted char count
+	sections, err := s.ParseFile(filename, content)
+	if err == nil {
+		totalChars := 0
+		for _, section := range sections {
+			totalChars += len(section.Content)
+		}
+		metadata.ExtractedChars = totalChars
+	}
+
+	return metadata, nil
+}
+
+// readPDFText is a helper to read all text from a PDF using io.Reader
+func readPDFText(r io.ReaderAt, size int64) (string, error) {
+	pdfReader, err := pdf.NewReader(r, size)
+	if err != nil {
+		return "", err
+	}
+
+	var textBuilder strings.Builder
+	for i := 1; i <= pdfReader.NumPage(); i++ {
+		page := pdfReader.Page(i)
+		if page.V.IsNull() {
+			continue
+		}
+
+		text, err := page.GetPlainText(nil)
+		if err != nil {
+			continue
+		}
+
+		textBuilder.WriteString(text)
+		textBuilder.WriteString("\n\n")
+	}
+
+	return textBuilder.String(), nil
 }

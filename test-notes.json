@@ -1,0 +1,121 @@
+{
+  "notes": [
+    {
+      "id": "note-001",
+      "title": "Project Ideas",
+      "textContent": "Build a personal knowledge base app that uses AI to organize notes automatically. Features: voice input, smart tagging, cross-reference suggestions, and weekly digests.",
+      "labels": [
+        {
+          "name": "Ideas"
+        },
+        {
+          "name": "Projects"
+        }
+      ],
+      "color": "DEFAULT",
+      "isPinned": true,
+      "isArchived": false,
+      "createdTime": "2025-12-28T10:30:00.000Z",
+      "modifiedTime": "2025-12-30T15:45:00.000Z"
+    },
+    {
+      "id": "note-002",
+      "title": "Books to Read",
+      "textContent": "1. Atomic Habits by James Clear\n2. The Pragmatic Programmer\n3. Designing Data-Intensive Applications\n4. Deep Work by Cal Newport\n5. The Mom Test",
+      "labels": [
+        {
+          "name": "Books"
+        },
+        {
+          "name": "Reading List"
+        }
+      ],
+      "color": "BLUE",
+      "isPinned": false,
+      "isArchived": false,
+      "createdTime": "2025-12-25T08:00:00.000Z",
+      "modifiedTime": "2025-12-29T12:00:00.000Z"
+    },
+    {
+      "id": "note-003",
+      "title": "Coffee Shop Recommendations",
+      "textContent": "Blue Bottle Coffee on 5th Ave - amazing pour over, great for working remotely. Try their New Orleans iced coffee!\n\nPhilz Coffee downtown - best mint mojito coffee. Gets crowded after 10am.\n\nLocal roasters on Main St - cozy atmosphere, excellent pastries.",
+      "labels": [
+        {
+          "name": "Food"
+        },
+        {
+          "name": "Places"
+        }
+      ],
+      "color": "BROWN",
+      "isPinned": false,
+      "isArchived": false,
+      "createdTime": "2025-12-20T16:30:00.000Z",
+      "modifiedTime": "2025-12-27T09:15:00.000Z"
+    },
+    {
+      "id": "note-004",
+      "title": "Meeting Notes - Product Roadmap",
+      "textContent": "Q1 2026 priorities:\n- Launch mobile app beta\n- Implement real-time collaboration\n- Add AI-powered search\n- Integrate with calendar apps\n\nAction items:\n- Sarah: mockups by Jan 15\n- Mike: API design doc by Jan 10\n- Me: user research interviews",
+      "labels": [
+        {
+          "name": "Work"
+        },
+        {
+          "name": "Meetings"
+        }
+      ],
+      "color": "YELLOW",
+      "isPinned": true,
+      "isArchived": false,
+      "createdTime": "2025-12-31T14:00:00.000Z",
+      "modifiedTime": "2025-12-31T14:30:00.000Z"
+    },
+    {
+      "id": "note-005",
+      "title": "Learning Resources",
+      "textContent": "Great tutorials and courses I found:\n\n- MIT OpenCourseWare: Algorithms and Data Structures\n-System Design Primer on GitHub\n- Fireship.io YouTube channel for quick tech overviews\n- PostgreSQL documentation - surprisingly well written",
+      "labels": [
+        {
+          "name": "Learning"
+        },
+        {
+          "name": "Programming"
+        },
+        {
+          "name": "Resources"
+        }
+      ],
+      "color": "GREEN",
+      "isPinned": false,
+      "isArchived": false,
+      "createdTime": "2025-12-15T11:20:00.000Z",
+      "modifiedTime": "2025-12-28T19:45:00.000Z"
+    },
+    {
+      "id": "note-006",
+      "title": "Gift Ideas",
+      "textContent": "Birthday gifts for family:\n- Mom: noise-canceling headphones (Sony or Bose)\n- Dad: book on woodworking or new tools\n- Sister: art supplies or museum membership\n- Brother: mechanical keyboard (he's been eyeing the Keychron Q1)",
+      "labels": [
+        {
+          "name": "Personal"
+        },
+        {
+          "name": "Shopping"
+        }
+      ],
+      "color": "PINK",
+      "isPinned": false,
+      "isArchived": false,
+      "createdTime": "2025-12-10T09:00:00.000Z",
+      "modifiedTime": "2025-12-26T20:30:00.000Z"
+    }
+  ],
+  "exportInfo": {
+    "exportDate": "2025-12-31T15:00:00.000Z",
+    "version": "1.0",
+    "source": "Google Keep"
+  }
+}
+

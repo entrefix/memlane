@@ -39,7 +39,7 @@ The RAG & Memories system provides intelligent knowledge management capabilities
 | Hybrid Search | Combines vector similarity + keyword matching for best results |
 | AI Categorization | Automatic classification into 11 categories |
 | URL Processing | Scrapes and summarizes web pages mentioned in memories |
-| File Upload | Import memories from .txt and .md files |
+| File Upload | Import memories from .txt, .md, .pdf, and .json files |
 | Weekly Digest | AI-generated summary of the week's memories |
 | Q&A System | Ask natural language questions about your data |
 
@@ -259,12 +259,14 @@ var memoryProcessingTools = []Tool{
 
 ### File Upload
 
-Users can upload `.txt` or `.md` files to bulk-create memories:
+Users can upload files to bulk-create memories:
 
 | File Type | Behavior |
 |-----------|----------|
 | `.txt` | Entire file becomes one memory |
 | `.md` | Split by `#` and `##` headings into multiple memories |
+| `.pdf` | Text extracted page-by-page, split into chunks if large (>10K chars) |
+| `.json` | Converted to readable key-value text format |
 
 ```go
 // FileParserService handles parsing
@@ -280,8 +282,8 @@ func (s *FileParserService) ParseFile(filename string, content []byte) ([]Parsed
 ```
 
 **Limits:**
-- Maximum file size: 5 MB
-- Allowed types: `.txt`, `.md`
+- Maximum file size: 10 MB (20 MB for PDFs)
+- Allowed types: `.txt`, `.md`, `.pdf`, `.json`
 
 ### Weekly Digest
 
@@ -974,7 +976,7 @@ POST /api/memories/upload
 Authorization: Bearer <token>
 Content-Type: multipart/form-data
 
-file: <.txt or .md file>
+file: <.txt, .md, .pdf, or .json file>
 ```
 
 **Response:**
