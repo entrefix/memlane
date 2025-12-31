@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mr.Brain (TodoMyDay) is a personal productivity application with AI-powered task management and a smart memories/notes system. It features a React + TypeScript frontend and a Go + Gin backend with SQLite database, vector search capabilities, and RAG (Retrieval-Augmented Generation) for intelligent search and Q&A.
+memlane (TodoMyDay) is a personal productivity application with AI-powered task management and a smart memories/notes system. It features a React + TypeScript frontend and a Go + Gin backend with SQLite database, vector search capabilities, and RAG (Retrieval-Augmented Generation) for intelligent search and Q&A.
 
 ## Development Commands
 

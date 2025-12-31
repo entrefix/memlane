@@ -21,6 +21,10 @@
     @apply bg-surface-light dark:bg-surface-dark rounded-2xl p-6 border border-gray-200/50 dark:border-gray-800/50 shadow-subtle;
   }
 
+  .glass-card {
+    @apply bg-white/70 dark:bg-surface-dark-elevated/70 backdrop-blur-glass rounded-2xl shadow-float border border-white/50 dark:border-gray-800/30;
+  }
+
   .input {
     @apply bg-surface-light-muted dark:bg-surface-dark-muted border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all duration-200;
   }
@@ -31,5 +35,15 @@
 
   .progress-bar-fill {
     @apply h-full bg-primary-500 transition-all duration-300;
+  }
+
+  .scrollbar-hide {
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
   }
 }

@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { CheckSquare, BookmarkSimple, ChatCircle, Gear, SignOut, Sun, Moon, X } from '@phosphor-icons/react';
+import { CheckSquare, BookmarkSimple, ChatCircle, Gear, SignOut, Sun, Moon, X, SquaresFour } from '@phosphor-icons/react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -24,6 +24,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   const navItems = [
+    { path: '/', icon: SquaresFour, label: 'Unified' },
     { path: '/memories', icon: BookmarkSimple, label: 'Memories' },
     { path: '/todos', icon: CheckSquare, label: 'Todos' },
     { path: '/chat', icon: ChatCircle, label: 'Ask AI' },
@@ -35,9 +36,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="p-6 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
-            <span className="text-white text-sm font-bold">M</span>
+            <img src="/logo-white.png" alt="Mr.Brain" className="w-6 h-6" />
           </div>
-          <h1 className="text-xl font-heading text-gray-800 dark:text-white">Mr. Brain</h1>
+                  <h1 className="text-xl font-heading text-gray-800 dark:text-white">memlane</h1>
         </div>
         <button
           onClick={onClose}
