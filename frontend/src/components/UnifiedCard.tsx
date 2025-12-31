@@ -69,11 +69,11 @@ export default function UnifiedCard({ item, type, onClick }: UnifiedCardProps) {
           <CheckSquare size={18} weight="regular" className="text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
         )}
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-2 mb-1">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-3 mb-1">
             {title}
           </h3>
           {summary && (
-            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3">
+            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-6">
               {summary}
             </p>
           )}

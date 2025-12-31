@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from '@phosphor-icons/react';
 import { useDebounce } from '../hooks/useDebounce';
 
 interface CreateNoteModalProps {
@@ -15,6 +14,7 @@ export default function CreateNoteModal({ isOpen, onClose, onSubmit, type }: Cre
   const [content, setContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [autoTitle, setAutoTitle] = useState('');
+  const contentRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-generate title from content
   useEffect(() => {
@@ -27,45 +27,62 @@ export default function CreateNoteModal({ isOpen, onClose, onSubmit, type }: Cre
     }
   }, [content, title]);
 
-  // Debounced auto-save
-  const debouncedContent = useDebounce(content, 300);
-  const debouncedTitle = useDebounce(title, 300);
-
+  // Focus textarea when modal opens
   useEffect(() => {
-    if (isOpen && (debouncedContent.trim() || debouncedTitle.trim())) {
-      // Auto-save logic would go here if needed
-      // For now, we'll save on submit
+    if (isOpen && contentRef.current) {
+      setTimeout(() => contentRef.current?.focus(), 100);
     }
-  }, [debouncedContent, debouncedTitle, isOpen]);
+  }, [isOpen]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!content.trim() && !title.trim()) return;
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setTitle('');
+      setContent('');
+      setAutoTitle('');
+      setIsSaving(false);
+    }
+  }, [isOpen]);
 
-    // Close modal immediately (optimistic UI)
-    const finalTitle = title.trim() || autoTitle;
+  const handleSave = async () => {
+    // For memories, only content is required. For todos, either title or content is required.
+    if (type === 'memory' && !content.trim()) {
+      onClose();
+      return;
+    }
+    if (type === 'todo' && !content.trim() && !title.trim()) {
+      onClose();
+      return;
+    }
+
+    setIsSaving(true);
+    const finalTitle = type === 'todo' ? (title.trim() || autoTitle) : '';
     const finalContent = content.trim();
     
-    // Reset form and close
-    setTitle('');
-    setContent('');
-    setAutoTitle('');
-    onClose();
-    
-    // Submit in background
     try {
       await onSubmit(finalTitle, finalContent);
+      // Reset form after successful save
+      setTitle('');
+      setContent('');
+      setAutoTitle('');
+      onClose();
     } catch (error) {
       console.error('Failed to create memory:', error);
       // Error handling is done in parent component
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleClose = () => {
-    setTitle('');
-    setContent('');
-    setAutoTitle('');
-    onClose();
+  const handleClose = async () => {
+    // Auto-save on close if there's content
+    if (type === 'memory' && content.trim()) {
+      await handleSave();
+    } else if (type === 'todo' && (content.trim() || title.trim())) {
+      await handleSave();
+    } else {
+      onClose();
+    }
   };
 
   if (!isOpen) return null;
@@ -80,80 +97,64 @@ export default function CreateNoteModal({ isOpen, onClose, onSubmit, type }: Cre
         onClick={handleClose}
       >
         <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
+          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.95, opacity: 0, y: 20 }}
+          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+          className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+          style={{
+            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+          }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Create {type === 'memory' ? 'Memory' : 'Todo'}
-            </h2>
-            <button
-              onClick={handleClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <X size={20} weight="regular" className="text-gray-500 dark:text-gray-400" />
-            </button>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Title {!title.trim() && autoTitle && (
-                    <span className="text-xs text-gray-500">(auto-generated)</span>
-                  )}
-                </label>
+          {/* Content Area - Google Keep style */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Title field - Only show for todos, not for memories */}
+            {type === 'todo' && (
+              <div className="px-6 pt-6 pb-3">
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder={autoTitle || 'Enter title...'}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder={autoTitle || 'Title'}
+                  className="w-full text-lg font-medium bg-transparent border-none outline-none text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      contentRef.current?.focus();
+                    }
+                  }}
                 />
-                {!title.trim() && autoTitle && (
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Will use: "{autoTitle}"
-                  </p>
-                )}
               </div>
+            )}
 
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Content
-                </label>
-                <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Start typing..."
-                  rows={10}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                />
-              </div>
+            {/* Content textarea */}
+            <div className="flex-1 px-6 py-4 overflow-y-auto">
+              <textarea
+                ref={contentRef}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder={type === 'memory' ? 'Start typing your memory...' : 'Start typing...'}
+                className="w-full min-h-[250px] text-sm bg-transparent border-none outline-none text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none"
+                style={{ 
+                  fontFamily: 'inherit',
+                  lineHeight: '1.6',
+                }}
+              />
             </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
+            {/* Footer - Google Keep style */}
+            <div className="px-6 py-3 flex items-center justify-end border-t border-gray-100 dark:border-gray-800">
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                disabled={isSaving}
+                className="px-5 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving || (!content.trim() && !title.trim())}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSaving ? 'Creating...' : 'Create'}
+                {isSaving ? 'Saving...' : 'Save'}
               </button>
             </div>
-          </form>
+          </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>

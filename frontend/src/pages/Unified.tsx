@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { Upload, X, Gear, Sun, Moon, Plus, Cpu, Trash, Database } from '@phosphor-icons/react';
+import { Upload, Gear, Sun, Moon, Plus, Cpu, Trash, Database } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { memoryApi, todoApi, ragApi, aiProviderApi, userDataApi } from '../api';
-import type { Memory, Todo, RAGAskResponse, RAGSearchResult, AIProvider, AIProviderModel, AIProviderCreate, DataStats } from '../types';
+import type { Memory, Todo, RAGAskResponse, RAGSearchResult } from '../types';
+import type { AIProvider, AIProviderModel, AIProviderCreate, DataStats } from '../api';
 import UnifiedGrid from '../components/UnifiedGrid';
 import CreateNoteModal from '../components/CreateNoteModal';
 import NoteDetailModal from '../components/NoteDetailModal';
@@ -34,14 +35,18 @@ type CitationItem = {
   isCitation: boolean;
 };
 
+// Pending item type for optimistic UI
+type PendingMemory = Memory & { isProcessing?: boolean };
+type PendingTodo = Todo & { isProcessing?: boolean };
+
 export default function Unified() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('mems');
   const [showSettings, setShowSettings] = useState(false);
   
   // Data states
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const [memories, setMemories] = useState<(Memory | PendingMemory)[]>([]);
+  const [todos, setTodos] = useState<(Todo | PendingTodo)[]>([]);
   const [memoryCitations, setMemoryCitations] = useState<CitationItem[]>([]);
   const [todoCitations, setTodoCitations] = useState<CitationItem[]>([]);
   
@@ -106,23 +111,25 @@ export default function Unified() {
     
     // Create temporary pending item for optimistic UI
     const tempId = `temp-${Date.now()}`;
-    let pendingItem: Memory | Todo;
     
     try {
       if (activeTab === 'mems') {
-        // For memories, use content only - title is just for display, backend generates summary
-        // Don't combine title and content - that causes double submission
+        // For memories, use content only - backend generates summary automatically
         const memoryContent = content.trim();
         if (!memoryContent) {
           toast.error('Content is required');
           return;
         }
         
-        pendingItem = {
+        // Auto-generate summary from content (first line, truncated)
+        const autoSummary = memoryContent.split('\n')[0].trim();
+        const summary = autoSummary.length > 100 ? autoSummary.substring(0, 100) + '...' : autoSummary;
+        
+        const pendingItem: PendingMemory = {
           id: tempId,
           user_id: user?.id || '',
           content: memoryContent,
-          summary: title.trim() || null,
+          summary: summary || null,
           category: 'Uncategorized',
           url: null,
           url_title: null,
@@ -130,12 +137,13 @@ export default function Unified() {
           is_archived: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        } as Memory & { isProcessing?: boolean };
+          isProcessing: true,
+        };
         
         // Add to grid with processing indicator
-        setMemories((prev) => [{ ...pendingItem, isProcessing: true }, ...prev]);
+        setMemories((prev) => [pendingItem, ...prev]);
         
-        // Create via API - only send content, not title+content
+        // Create via API - only send content, backend will generate summary
         const newMemory = await memoryApi.create({ content: memoryContent });
         
         // Replace pending with real item
@@ -144,7 +152,7 @@ export default function Unified() {
       } else {
         // For todos, use title as title and content as description
         const todoTitle = title.trim() || content.split('\n')[0].substring(0, 50) || 'Untitled Todo';
-        pendingItem = {
+        const pendingItem: PendingTodo = {
           id: tempId,
           user_id: user?.id || '',
           title: todoTitle,
@@ -157,10 +165,11 @@ export default function Unified() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           group_id: null,
-        } as Todo & { isProcessing?: boolean };
+          isProcessing: true,
+        };
         
         // Add to grid with processing indicator
-        setTodos((prev) => [...prev, { ...pendingItem, isProcessing: true }]);
+        setTodos((prev) => [...prev, pendingItem]);
         
         // Create via API
         const newTodo = await todoApi.create({
@@ -263,15 +272,17 @@ export default function Unified() {
   };
 
   // Submit query to Ask AI
-  const submitQuery = async (query: string) => {
-    // Add user message
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: query,
-      timestamp: new Date(),
-    };
-    setAskMessages((prev) => [...prev, userMessage]);
+  const submitQuery = async (query: string, skipUserMessage: boolean = false) => {
+    // Add user message (unless regenerating)
+    if (!skipUserMessage) {
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        type: 'user',
+        content: query,
+        timestamp: new Date(),
+      };
+      setAskMessages((prev) => [...prev, userMessage]);
+    }
 
     // Add loading message
     const loadingId = (Date.now() + 1).toString();
@@ -360,13 +371,21 @@ export default function Unified() {
       return newMessages;
     });
     
-    // Resubmit the query
-    submitQuery(lastQuery);
+    // Resubmit the query without adding a new user message
+    submitQuery(lastQuery, true);
   };
 
   // Handle item click
-  const handleItemClick = (item: Memory | Todo | CitationItem) => {
-    setSelectedItem(item);
+  const handleItemClick = (item: Memory | Todo | { document: RAGSearchResult['document']; isCitation?: boolean } | PendingMemory | PendingTodo) => {
+    // Don't open detail modal for pending items
+    if ('isProcessing' in item && item.isProcessing) {
+      return;
+    }
+    // Normalize citation items - ensure isCitation is always boolean
+    const normalizedItem: Memory | Todo | CitationItem = 'document' in item
+      ? { document: item.document, isCitation: item.isCitation ?? true }
+      : item as Memory | Todo;
+    setSelectedItem(normalizedItem);
     setIsDetailModalOpen(true);
   };
 
@@ -810,7 +829,7 @@ export default function Unified() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-surface-light dark:bg-surface-dark relative">
+    <div className="h-full w-full flex flex-col bg-surface-light dark:bg-surface-dark relative">
       {/* Header - Translucent, hovering over grid (no border, no shadow, seamless blend with grid) */}
       <div className="sticky top-0 z-20 bg-surface-light/60 dark:bg-surface-dark/60 backdrop-blur-md px-4 sm:px-6 py-3">
         <div className="flex items-center justify-between">
@@ -870,7 +889,7 @@ export default function Unified() {
           </div>
         ) : (
           /* Grid Area - with subtle top padding so initial elements aren't hidden, but can scroll under header */
-          <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-6 pb-32">
+          <div className="flex-1 overflow-y-auto pt-6 pb-32">
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
@@ -880,6 +899,7 @@ export default function Unified() {
                 items={displayItems}
                 type={activeTab === 'mems' ? 'memory' : 'todo'}
                 onCreateClick={() => setIsCreateModalOpen(true)}
+                onImportClick={() => setIsImportModalOpen(true)}
                 onItemClick={handleItemClick}
               />
             )}
