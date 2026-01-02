@@ -18,6 +18,7 @@ type ContentType string
 const (
 	ContentTypeTodo   ContentType = "todo"
 	ContentTypeMemory ContentType = "memory"
+	ContentTypeWeb    ContentType = "web" // Web search results
 )
 
 // EmbeddingDimensions for different models
@@ -70,11 +71,26 @@ type SearchResponse struct {
 	TimeTaken  float64        `json:"time_taken_ms"`
 }
 
+// AskMode represents the mode for answering questions
+type AskMode string
+
+const (
+	// AskModeMemories uses memories/todos + LLM (default)
+	AskModeMemories AskMode = "memories"
+	// AskModeInternet uses web search + LLM
+	AskModeInternet AskMode = "internet"
+	// AskModeHybrid uses memories + internet + LLM
+	AskModeHybrid AskMode = "hybrid"
+	// AskModeLLM uses direct LLM only (no context retrieval)
+	AskModeLLM AskMode = "llm"
+)
+
 // AskRequest represents a Q&A request
 type AskRequest struct {
 	Question     string   `json:"question" binding:"required"`
 	ContentTypes []string `json:"content_types"`
 	MaxContext   int      `json:"max_context"` // Max docs to include in context
+	Mode         AskMode  `json:"mode"`        // Ask mode: memories, internet, hybrid, llm
 }
 
 // AskResponse contains the answer and sources

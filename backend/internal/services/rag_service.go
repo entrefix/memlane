@@ -23,6 +23,7 @@ type RAGService struct {
 	embeddingService *EmbeddingService
 	aiService        *AIService
 	aiProviderSvc    *AIProviderService
+	scraperService   *ScraperService
 }
 
 // RAGConfig holds configuration for the RAG service
@@ -40,6 +41,7 @@ func NewRAGService(
 	embeddingService *EmbeddingService,
 	aiService *AIService,
 	aiProviderSvc *AIProviderService,
+	scraperService *ScraperService,
 ) *RAGService {
 	return &RAGService{
 		vectorRepo:       vectorRepo,
@@ -49,6 +51,7 @@ func NewRAGService(
 		embeddingService: embeddingService,
 		aiService:        aiService,
 		aiProviderSvc:    aiProviderSvc,
+		scraperService:   scraperService,
 	}
 }
 
@@ -237,7 +240,7 @@ func (s *RAGService) enrichSearchResults(ctx context.Context, userID string, res
 // Q&A (Ask)
 // ==========================================
 
-// Ask answers a question using RAG
+// Ask answers a question using RAG with multiple modes
 func (s *RAGService) Ask(ctx context.Context, userID string, req *models.AskRequest) (*models.AskResponse, error) {
 	startTime := time.Now()
 
@@ -245,9 +248,124 @@ func (s *RAGService) Ask(ctx context.Context, userID string, req *models.AskRequ
 		req.MaxContext = 5
 	}
 
-	log.Printf("[RAG] Ask: user=%s, question=%q", userID, req.Question)
+	// Default mode is memories
+	if req.Mode == "" {
+		req.Mode = models.AskModeMemories
+	}
 
-	// First, search for relevant documents
+	log.Printf("[RAG] Ask: user=%s, question=%q, mode=%s", userID, req.Question, req.Mode)
+
+	var contextStr string
+	var sources []models.SearchResult
+
+	switch req.Mode {
+	case models.AskModeMemories:
+		// Search memories/todos (current behavior)
+		contextStr, sources = s.getMemoriesContext(ctx, userID, req)
+
+	case models.AskModeInternet:
+		// Web search + scrape top results
+		webCtx, webSources, err := s.getInternetContext(ctx, req.Question)
+		if err != nil {
+			log.Printf("[RAG] Internet search error: %v", err)
+			return &models.AskResponse{
+				Answer:    "I couldn't search the internet. Please check if web search is configured.",
+				Sources:   []models.SearchResult{},
+				Question:  req.Question,
+				TimeTaken: float64(time.Since(startTime).Milliseconds()),
+			}, nil
+		}
+		contextStr = webCtx
+		sources = webSources
+
+	case models.AskModeHybrid:
+		// Combine memories + internet
+		memCtx, memSources := s.getMemoriesContext(ctx, userID, req)
+		webCtx, webSources, err := s.getInternetContext(ctx, req.Question)
+		if err != nil {
+			log.Printf("[RAG] Internet search error (hybrid mode): %v", err)
+			// Continue with memories only
+			contextStr = memCtx
+			sources = memSources
+		} else {
+			if memCtx != "" && webCtx != "" {
+				contextStr = memCtx + "\n\n--- Web Results ---\n\n" + webCtx
+			} else if memCtx != "" {
+				contextStr = memCtx
+			} else {
+				contextStr = webCtx
+			}
+			sources = append(memSources, webSources...)
+		}
+
+	case models.AskModeLLM:
+		// Direct LLM only - no context retrieval
+		contextStr = ""
+		sources = []models.SearchResult{}
+	}
+
+	// Generate answer based on mode
+	var answer string
+	var err error
+	switch req.Mode {
+	case models.AskModeLLM:
+		answer, err = s.generateDirectAnswer(ctx, userID, req.Question)
+	case models.AskModeInternet:
+		if contextStr == "" {
+			return &models.AskResponse{
+				Answer:    "I couldn't find any relevant web results for your question.",
+				Sources:   []models.SearchResult{},
+				Question:  req.Question,
+				TimeTaken: float64(time.Since(startTime).Milliseconds()),
+			}, nil
+		}
+		answer, err = s.generateInternetAnswer(ctx, userID, req.Question, contextStr)
+	case models.AskModeHybrid:
+		if contextStr == "" && len(sources) == 0 {
+			return &models.AskResponse{
+				Answer:    "I couldn't find any relevant information to answer your question.",
+				Sources:   []models.SearchResult{},
+				Question:  req.Question,
+				TimeTaken: float64(time.Since(startTime).Milliseconds()),
+			}, nil
+		}
+		// Check if we have both memory and web sources
+		hasMemorySources := false
+		hasWebSources := false
+		for _, src := range sources {
+			if src.Document.ContentType == models.ContentTypeWeb {
+				hasWebSources = true
+			} else {
+				hasMemorySources = true
+			}
+		}
+		answer, err = s.generateHybridAnswer(ctx, userID, req.Question, contextStr, hasMemorySources, hasWebSources)
+	default: // memories mode
+		if contextStr == "" && len(sources) == 0 {
+			return &models.AskResponse{
+				Answer:    "I couldn't find any relevant information in your memories to answer your question.",
+				Sources:   []models.SearchResult{},
+				Question:  req.Question,
+				TimeTaken: float64(time.Since(startTime).Milliseconds()),
+			}, nil
+		}
+		answer, err = s.generateAnswer(ctx, userID, req.Question, contextStr)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate answer: %w", err)
+	}
+
+	return &models.AskResponse{
+		Answer:    answer,
+		Sources:   sources,
+		Question:  req.Question,
+		TimeTaken: float64(time.Since(startTime).Milliseconds()),
+	}, nil
+}
+
+// getMemoriesContext retrieves context from user's memories and todos
+func (s *RAGService) getMemoriesContext(ctx context.Context, userID string, req *models.AskRequest) (string, []models.SearchResult) {
 	searchReq := &models.SearchRequest{
 		Query:        req.Question,
 		ContentTypes: req.ContentTypes,
@@ -257,16 +375,12 @@ func (s *RAGService) Ask(ctx context.Context, userID string, req *models.AskRequ
 
 	searchResp, err := s.Search(ctx, userID, searchReq)
 	if err != nil {
-		return nil, fmt.Errorf("search failed: %w", err)
+		log.Printf("[RAG] Memory search error: %v", err)
+		return "", nil
 	}
 
 	if len(searchResp.Results) == 0 {
-		return &models.AskResponse{
-			Answer:    "I couldn't find any relevant information to answer your question.",
-			Sources:   []models.SearchResult{},
-			Question:  req.Question,
-			TimeTaken: float64(time.Since(startTime).Milliseconds()),
-		}, nil
+		return "", nil
 	}
 
 	// Build context from search results
@@ -301,23 +415,95 @@ func (s *RAGService) Ask(ctx context.Context, userID string, req *models.AskRequ
 		contextParts = append(contextParts, contextItem)
 	}
 
-	contextStr := strings.Join(contextParts, "\n\n")
-
-	// Generate answer using AI
-	answer, err := s.generateAnswer(ctx, userID, req.Question, contextStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate answer: %w", err)
-	}
-
-	return &models.AskResponse{
-		Answer:    answer,
-		Sources:   searchResp.Results,
-		Question:  req.Question,
-		TimeTaken: float64(time.Since(startTime).Milliseconds()),
-	}, nil
+	return strings.Join(contextParts, "\n\n"), searchResp.Results
 }
 
-// generateAnswer uses AI to answer the question based on context
+// getInternetContext searches the web and scrapes top results
+func (s *RAGService) getInternetContext(ctx context.Context, question string) (string, []models.SearchResult, error) {
+	if s.scraperService == nil {
+		return "", nil, fmt.Errorf("web search not configured")
+	}
+
+	// Search the web
+	searchResults, err := s.scraperService.SearchWeb(question)
+	if err != nil {
+		return "", nil, fmt.Errorf("web search failed: %w", err)
+	}
+
+	if len(searchResults) == 0 {
+		return "", nil, fmt.Errorf("no web results found")
+	}
+
+	var contextParts []string
+	var sources []models.SearchResult
+	successfulScrapes := 0
+
+	// Scrape top 2 results (as user requested)
+	for i, result := range searchResults {
+		if successfulScrapes >= 2 {
+			break
+		}
+
+		scraped, err := s.scraperService.ScrapeURL(result.URL)
+		if err != nil {
+			log.Printf("[RAG] Failed to scrape %s: %v", result.URL, err)
+			continue
+		}
+
+		successfulScrapes++
+
+		// Build context item
+		title := scraped.Title
+		if title == "" {
+			title = result.Title
+		}
+		content := scraped.Content
+		if content == "" {
+			content = result.Snippet
+		}
+
+		contextItem := fmt.Sprintf("[Web %d - %s]\nURL: %s\n%s", i+1, title, result.URL, content)
+		contextParts = append(contextParts, contextItem)
+
+		// Create synthetic SearchResult for source attribution
+		webDoc := &models.Document{
+			ID:          fmt.Sprintf("web-%d", i),
+			ContentType: models.ContentTypeWeb,
+			ContentID:   result.URL,
+			Title:       title,
+			Content:     content,
+			Metadata: map[string]string{
+				"url":    result.URL,
+				"source": "web",
+			},
+		}
+
+		sources = append(sources, models.SearchResult{
+			Document:  webDoc,
+			Score:     1.0 - float64(i)*0.1, // Decreasing score by rank
+			MatchType: "web",
+		})
+	}
+
+	if len(contextParts) == 0 {
+		return "", nil, fmt.Errorf("failed to scrape any web results")
+	}
+
+	return strings.Join(contextParts, "\n\n"), sources, nil
+}
+
+// generateDirectAnswer generates an answer directly from LLM without context
+func (s *RAGService) generateDirectAnswer(ctx context.Context, userID, question string) (string, error) {
+	prompt := fmt.Sprintf(`You are a helpful assistant. Please answer the following question directly and helpfully.
+
+QUESTION: %s
+
+ANSWER:`, question)
+
+	return s.callAIProvider(ctx, userID, prompt)
+}
+
+// generateAnswer uses AI to answer the question based on memories context
 func (s *RAGService) generateAnswer(ctx context.Context, userID, question, contextStr string) (string, error) {
 	prompt := fmt.Sprintf(`You are a helpful assistant answering questions about a user's personal data (todos and memories).
 
@@ -337,6 +523,72 @@ INSTRUCTIONS:
 - Don't make up information not present in the context
 
 ANSWER:`, contextStr, question)
+
+	return s.callAIProvider(ctx, userID, prompt)
+}
+
+// generateInternetAnswer uses AI to answer based on web search results
+func (s *RAGService) generateInternetAnswer(ctx context.Context, userID, question, contextStr string) (string, error) {
+	prompt := fmt.Sprintf(`You are a helpful assistant answering questions using information from web search results.
+
+Based on the following web search results, answer the user's question comprehensively.
+Synthesize information from multiple sources when relevant.
+
+WEB SEARCH RESULTS:
+%s
+
+QUESTION: %s
+
+INSTRUCTIONS:
+- Synthesize information from the web results to provide a comprehensive answer
+- When citing specific information, mention the source (e.g., "According to [source name]...")
+- If the web results don't fully answer the question, say what you found and what's missing
+- Be helpful and informative
+- Format your response clearly with sections or bullet points if appropriate
+
+ANSWER:`, contextStr, question)
+
+	return s.callAIProvider(ctx, userID, prompt)
+}
+
+// generateHybridAnswer uses AI to answer combining personal data and web results
+func (s *RAGService) generateHybridAnswer(ctx context.Context, userID, question, contextStr string, hasMemories, hasWeb bool) (string, error) {
+	var sourceDescription string
+	if hasMemories && hasWeb {
+		sourceDescription = "your personal memories/todos AND web search results"
+	} else if hasMemories {
+		sourceDescription = "your personal memories/todos"
+	} else {
+		sourceDescription = "web search results"
+	}
+
+	prompt := fmt.Sprintf(`You are a helpful assistant answering questions using %s.
+
+The context below contains two types of information:
+1. PERSONAL DATA: The user's own memories, notes, and todos (marked with [Memory] or [Todo])
+2. WEB RESULTS: Information from web searches (marked with [Web])
+
+CONTEXT:
+%s
+
+QUESTION: %s
+
+INSTRUCTIONS:
+- Combine insights from both personal data and web results to give a comprehensive answer
+- Clearly distinguish between what the user has noted/planned personally vs what external sources say
+- For example: "Based on your notes, you planned to study X. According to [web source], a good approach would be Y..."
+- If the user has personal data relevant to the question, prioritize that and supplement with web info
+- If only web results are relevant, provide the web-based answer
+- Be conversational and helpful, making connections between personal context and external information
+- Format your response clearly, perhaps separating "From your data" and "From the web" sections if both are substantial
+
+ANSWER:`, sourceDescription, contextStr, question)
+
+	return s.callAIProvider(ctx, userID, prompt)
+}
+
+// callAIProvider calls the configured AI provider with the given prompt
+func (s *RAGService) callAIProvider(ctx context.Context, userID, prompt string) (string, error) {
 
 	// Try to use user's configured AI provider first
 	if s.aiProviderSvc != nil {

@@ -952,6 +952,106 @@ export default function Memories() {
       {/* Quick Capture Input */}
       <div className="absolute bottom-0 left-0 right-0 z-20">
         <div className="max-w-4xl mx-auto px-3 sm:px-4 pb-4 sm:pb-6">
+          {/* Upload Progress Banner - Highly Visible */}
+          <AnimatePresence>
+            {isUploading && (
+              <motion.div
+                initial={{ opacity: 0, y: 20, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: 'auto' }}
+                exit={{ opacity: 0, y: 20, height: 0 }}
+                transition={{ duration: 0.3 }}
+                className="mb-3 overflow-hidden"
+              >
+                <div className={`rounded-xl p-4 border shadow-lg ${
+                  uploadJobStatus?.status === 'completed'
+                    ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'
+                    : uploadJobStatus?.status === 'failed'
+                    ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
+                    : 'bg-primary-50 dark:bg-primary-900/30 border-primary-200 dark:border-primary-800'
+                }`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    {/* Animated Icon */}
+                    <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+                      uploadJobStatus?.status === 'completed'
+                        ? 'bg-green-100 dark:bg-green-800/50'
+                        : uploadJobStatus?.status === 'failed'
+                        ? 'bg-red-100 dark:bg-red-800/50'
+                        : 'bg-primary-100 dark:bg-primary-800/50'
+                    }`}>
+                      {uploadJobStatus?.status === 'completed' ? (
+                        <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : uploadJobStatus?.status === 'failed' ? (
+                        <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-primary-600 dark:text-primary-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* Status Text */}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-semibold ${
+                        uploadJobStatus?.status === 'completed'
+                          ? 'text-green-700 dark:text-green-300'
+                          : uploadJobStatus?.status === 'failed'
+                          ? 'text-red-700 dark:text-red-300'
+                          : 'text-primary-700 dark:text-primary-300'
+                      }`}>
+                        {uploadJobStatus?.status === 'completed'
+                          ? 'Upload Complete!'
+                          : uploadJobStatus?.status === 'failed'
+                          ? 'Upload Failed'
+                          : uploadJobStatus?.status === 'processing'
+                          ? 'Processing file...'
+                          : 'Uploading file...'}
+                      </p>
+                      <p className={`text-xs mt-0.5 ${
+                        uploadJobStatus?.status === 'completed'
+                          ? 'text-green-600 dark:text-green-400'
+                          : uploadJobStatus?.status === 'failed'
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-primary-600 dark:text-primary-400'
+                      }`}>
+                        {uploadJobStatus?.status === 'completed'
+                          ? `Created ${uploadJobStatus?.memories_created || 0} ${(uploadJobStatus?.memories_created || 0) === 1 ? 'memory' : 'memories'}`
+                          : uploadJobStatus?.status === 'failed'
+                          ? uploadJobStatus?.error || 'Something went wrong'
+                          : `${uploadJobStatus?.progress || 0}% complete`}
+                      </p>
+                    </div>
+
+                    {/* Large Percentage */}
+                    {uploadJobStatus?.status !== 'completed' && uploadJobStatus?.status !== 'failed' && (
+                      <div className="flex-shrink-0 text-right">
+                        <span className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+                          {uploadJobStatus?.progress || 0}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Progress Bar */}
+                  {uploadJobStatus?.status !== 'completed' && uploadJobStatus?.status !== 'failed' && (
+                    <div className="h-2 bg-primary-100 dark:bg-primary-900/50 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${uploadJobStatus?.progress || 0}%` }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <form
             onSubmit={handleCreateMemory}
             className="bg-white/90 dark:bg-surface-dark-elevated/90 backdrop-blur-glass rounded-2xl shadow-float border border-gray-200/50 dark:border-gray-800/50"
@@ -974,33 +1074,26 @@ export default function Memories() {
               </div>
 
               {/* File Upload Button */}
-              <label className={`flex-shrink-0 group relative ${isUploading ? '' : 'cursor-pointer'}`}>
+              <label className={`flex-shrink-0 group relative ${isUploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                 <input
                   type="file"
                   accept=".txt,.md,.pdf,.json"
                   onChange={handleFileUpload}
-                  disabled={isUploading}
                   className="hidden"
+                  disabled={isUploading}
                 />
-                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors ${
-                  isUploading 
-                    ? 'bg-primary-100 dark:bg-primary-900/30' 
+                <div className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${
+                  isUploading
+                    ? 'bg-gray-100 dark:bg-gray-800 opacity-50'
                     : 'hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`}>
-                  {isUploading ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                      {uploadJobStatus && (
-                        <span className="text-xs font-medium text-primary-600 dark:text-primary-400">
-                          {uploadJobStatus.progress}%
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <Paperclip size={18} weight="regular" className="text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
-                  )}
+                  <Paperclip size={18} weight="regular" className={`transition-colors ${
+                    isUploading
+                      ? 'text-gray-300 dark:text-gray-600'
+                      : 'text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400'
+                  }`} />
                 </div>
-                {/* Tooltip */}
+                {/* Tooltip - hide when uploading */}
                 {!isUploading && (
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                     Upload file (.txt, .md, .pdf, .json)
@@ -1017,28 +1110,6 @@ export default function Memories() {
                 Add
               </button>
             </div>
-
-            {/* Upload progress bar */}
-            {isUploading && uploadProgress && (
-              <div className="px-3 pb-3">
-                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  <span>{uploadProgress}</span>
-                  {uploadJobStatus && uploadJobStatus.status !== 'failed' && (
-                    <span className="font-medium">{uploadJobStatus.progress}%</span>
-                  )}
-                </div>
-                {uploadJobStatus && uploadJobStatus.status !== 'failed' && (
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
-                    <div
-                      className={`h-1 rounded-full transition-all duration-300 ${
-                        uploadJobStatus.status === 'completed' ? 'bg-green-600' : 'bg-primary-600'
-                      }`}
-                      style={{ width: `${uploadJobStatus.progress}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
           </form>
         </div>
       </div>

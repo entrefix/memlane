@@ -44,6 +44,21 @@ export default function CreateNoteModal({ isOpen, onClose, onSubmit, type }: Cre
     }
   }, [isOpen]);
 
+  // Keyboard shortcut: Cmd/Ctrl + Enter to save
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, content, title, type]);
+
   const handleSave = async () => {
     // For memories, only content is required. For todos, either title or content is required.
     if (type === 'memory' && !content.trim()) {
@@ -149,9 +164,17 @@ export default function CreateNoteModal({ isOpen, onClose, onSubmit, type }: Cre
                 type="button"
                 onClick={handleClose}
                 disabled={isSaving}
-                className="px-5 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {isSaving ? 'Saving...' : 'Save'}
+                {isSaving ? 'Saving...' : (
+                  <>
+                    Save
+                    <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                      <span>{typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}</span>
+                      <span>↵</span>
+                    </kbd>
+                  </>
+                )}
               </button>
             </div>
           </div>

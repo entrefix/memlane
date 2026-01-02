@@ -169,9 +169,11 @@ export interface WebSearchResult {
 }
 
 // RAG types
+export type AskMode = 'memories' | 'internet' | 'hybrid' | 'llm';
+
 export interface RAGDocument {
   id: string;
-  content_type: 'todo' | 'memory';
+  content_type: 'todo' | 'memory' | 'web';
   content_id: string;
   user_id: string;
   title: string;

@@ -110,6 +110,7 @@ func main() {
 				embeddingService,
 				aiService,
 				aiProviderService,
+				scraperService,
 			)
 			log.Printf("RAG service initialized with NIM embedding model: %s (dim=%d, rpm=%d)",
 				cfg.NIMModel, cfg.NIMEmbeddingDim, cfg.NIMRPMLimit)

@@ -8,9 +8,10 @@ interface ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportComplete: (memories: Memory[]) => void;
+  onUploadStatusChange?: (status: UploadJobStatusResponse | null) => void;
 }
 
-export default function ImportModal({ isOpen, onClose, onImportComplete }: ImportModalProps) {
+export default function ImportModal({ isOpen, onClose, onImportComplete, onUploadStatusChange }: ImportModalProps) {
   const [dragActive, setDragActive] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastMemoryCountRef = useRef<number>(0);
@@ -29,6 +30,9 @@ export default function ImportModal({ isOpen, onClose, onImportComplete }: Impor
     try {
       const status = await memoryApi.getUploadJobStatus(jobId);
 
+      // Notify parent about status change
+      onUploadStatusChange?.(status);
+
       // Only append NEW memories (not already added)
       if (status.memories.length > lastMemoryCountRef.current) {
         const newMemories = status.memories.slice(lastMemoryCountRef.current);
@@ -45,6 +49,10 @@ export default function ImportModal({ isOpen, onClose, onImportComplete }: Impor
           pollingIntervalRef.current = null;
         }
         lastMemoryCountRef.current = 0;
+        // Clear status after a delay so user can see completion
+        setTimeout(() => {
+          onUploadStatusChange?.(null);
+        }, 3000);
       }
     } catch (error) {
       console.error('Failed to poll job status:', error);
@@ -53,6 +61,7 @@ export default function ImportModal({ isOpen, onClose, onImportComplete }: Impor
         pollingIntervalRef.current = null;
       }
       lastMemoryCountRef.current = 0;
+      onUploadStatusChange?.(null);
     }
   };
 
@@ -74,9 +83,21 @@ export default function ImportModal({ isOpen, onClose, onImportComplete }: Impor
     }
 
     try {
+      // Set initial pending status
+      onUploadStatusChange?.({
+        job_id: 'pending',
+        status: 'pending',
+        progress: 0,
+        total_items: 0,
+        processed_items: 0,
+        memories: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
       // Start the upload job
       const result = await memoryApi.startUploadJob(file);
-      
+
       // Close modal immediately
       onClose();
 
@@ -91,6 +112,7 @@ export default function ImportModal({ isOpen, onClose, onImportComplete }: Impor
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || 'Failed to upload file';
       alert(errorMsg);
+      onUploadStatusChange?.(null);
     }
   };
 

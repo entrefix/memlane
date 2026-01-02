@@ -12,6 +12,7 @@ export interface RAGAskParams {
   question: string;
   content_types?: ('todo' | 'memory')[];
   max_context?: number;
+  mode?: 'memories' | 'internet' | 'hybrid' | 'llm';
 }
 
 export const ragApi = {

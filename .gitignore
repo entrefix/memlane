@@ -58,3 +58,4 @@ backend/vendor/
 # Cache
 .vite/
 .cache/
+backend/server

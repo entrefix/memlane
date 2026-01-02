@@ -4,12 +4,13 @@ import { toast } from 'react-hot-toast';
 import { Gear, Plus, Cpu, Trash, Database } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
 import { memoryApi, todoApi, ragApi, aiProviderApi, userDataApi } from '../api';
-import type { Memory, Todo, RAGAskResponse, RAGSearchResult } from '../types';
+import type { Memory, Todo, RAGAskResponse, RAGSearchResult, UploadJobStatusResponse, AskMode } from '../types';
 import type { AIProvider, AIProviderModel, AIProviderCreate, DataStats } from '../api';
 import UnifiedGrid from '../components/UnifiedGrid';
 import CreateNoteModal from '../components/CreateNoteModal';
 import NoteDetailModal from '../components/NoteDetailModal';
 import ImportModal from '../components/ImportModal';
+import OnboardingModal from '../components/OnboardingModal';
 import ProfileDropdown from '../components/ProfileDropdown';
 import PillSwitch from '../components/PillSwitch';
 import AskAIResults from '../components/AskAIResults';
@@ -24,6 +25,7 @@ interface Message {
   timestamp: Date;
   isLoading?: boolean;
   sources?: RAGSearchResult[];
+  mode?: AskMode; // Store the mode this message was created with
 }
 
 type ActiveTab = 'mems' | 'todos';
@@ -60,6 +62,15 @@ export default function Unified() {
   const [askMessages, setAskMessages] = useState<Message[]>([]);
   const [askInputValue, setAskInputValue] = useState('');
   const [isAskLoading, setIsAskLoading] = useState(false);
+  const [askMode, setAskMode] = useState<AskMode>('memories');
+
+  // Upload status
+  const [uploadStatus, setUploadStatus] = useState<UploadJobStatusResponse | null>(null);
+
+  // Onboarding
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    return !localStorage.getItem('memlane_onboarding_complete');
+  });
 
   // Load initial data
   useEffect(() => {
@@ -147,6 +158,14 @@ export default function Unified() {
         
         // Replace pending with real item
         setMemories((prev) => prev.map((m) => m.id === tempId ? newMemory : m));
+
+        // Auto-clear Ask AI results when adding new memory (if there's an active search)
+        if (askMessages.length > 0) {
+          setAskMessages([]);
+          setMemoryCitations([]);
+          setTodoCitations([]);
+        }
+
         toast.success('Memory created');
       } else {
         // For todos, use title as title and content as description
@@ -268,39 +287,69 @@ export default function Unified() {
   const handleImportComplete = (importedMemories: Memory[]) => {
     setMemories((prev) => [...importedMemories, ...prev]);
     toast.success(`Imported ${importedMemories.length} memories`);
+
+    // Auto-clear Ask AI results when importing (if there's an active search)
+    if (askMessages.length > 0) {
+      setAskMessages([]);
+      setMemoryCitations([]);
+      setTodoCitations([]);
+    }
   };
 
   // Submit query to Ask AI
   const submitQuery = async (query: string, skipUserMessage: boolean = false) => {
-    // Add user message (unless regenerating)
+    // Clear citations when starting a NEW query
+    if (!skipUserMessage) {
+      setMemoryCitations([]);
+      setTodoCitations([]);
+    }
+
+    const loadingId = (Date.now() + 1).toString();
+
+    // For new queries: add new user message + loading (keep existing messages for stack)
+    // For regenerate: just add loading message to existing
     if (!skipUserMessage) {
       const userMessage: Message = {
         id: Date.now().toString(),
         type: 'user',
         content: query,
         timestamp: new Date(),
+        mode: askMode, // Store the mode with the user message
       };
-      setAskMessages((prev) => [...prev, userMessage]);
+      // Add new messages to existing (stack effect)
+      setAskMessages((prev) => [
+        ...prev,
+        userMessage,
+        {
+          id: loadingId,
+          type: 'assistant',
+          content: '',
+          timestamp: new Date(),
+          isLoading: true,
+          mode: askMode, // Store the mode with the assistant message too
+        },
+      ]);
+    } else {
+      // Regenerate: just add loading message to existing
+      setAskMessages((prev) => [
+        ...prev,
+        {
+          id: loadingId,
+          type: 'assistant',
+          content: '',
+          timestamp: new Date(),
+          isLoading: true,
+          mode: askMode, // Store the mode
+        },
+      ]);
     }
-
-    // Add loading message
-    const loadingId = (Date.now() + 1).toString();
-    setAskMessages((prev) => [
-      ...prev,
-      {
-        id: loadingId,
-        type: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        isLoading: true,
-      },
-    ]);
     setIsAskLoading(true);
 
     try {
       const response: RAGAskResponse = await ragApi.ask({
         question: query,
         max_context: 5,
+        mode: askMode,
       });
 
       // Update loading message with response
@@ -834,6 +883,7 @@ export default function Unified() {
                 onCreateClick={() => setIsCreateModalOpen(true)}
                 onImportClick={() => setIsImportModalOpen(true)}
                 onItemClick={handleItemClick}
+                uploadStatus={uploadStatus}
               />
             )}
           </div>
@@ -849,6 +899,13 @@ export default function Unified() {
               onInputChange={setAskInputValue}
               onSubmit={handleAskSubmit}
               onRegenerate={handleRegenerateQuery}
+              onClear={() => {
+                setAskMessages([]);
+                setMemoryCitations([]);
+                setTodoCitations([]);
+              }}
+              mode={askMode}
+              onModeChange={setAskMode}
             />
           </div>
         )}
@@ -879,6 +936,12 @@ export default function Unified() {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImportComplete={handleImportComplete}
+        onUploadStatusChange={setUploadStatus}
+      />
+
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
       />
     </div>
   );
