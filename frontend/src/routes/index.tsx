@@ -1,34 +1,28 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import ProtectedRoute from '../components/ProtectedRoute';
-import Layout from '../components/Layout';
-import RootRoute from '../components/RootRoute';
 import Login from '../pages/Login';
 import Register from '../pages/Register';
-import Dashboard from '../pages/Dashboard';
-import Memories from '../pages/Memories';
-import Chat from '../pages/Chat';
-import Settings from '../pages/Settings';
+import Landing from '../pages/Landing';
+import Unified from '../pages/Unified';
 
 export default function AppRoutes() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
     <Routes>
-      <Route path="/" element={<RootRoute />} />
-      <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
-      <Route path="/register" element={!user ? <Register /> : <Navigate to="/" replace />} />
-      <Route path="/unified" element={<Navigate to="/" replace />} />
-      <Route element={<ProtectedRoute />}>
-        <Route element={<Layout />}>
-          <Route path="/todos" element={<Dashboard />} />
-          <Route path="/memories" element={<Memories />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/dashboard" element={<Navigate to="/memories" replace />} />
-          <Route path="/settings" element={<Settings />} />
-        </Route>
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/login" element={!user ? <Login /> : <Navigate to="/home" />} />
+      <Route path="/register" element={!user ? <Register /> : <Navigate to="/home" />} />
+      <Route path="/" element={!user ? <Landing /> : <Navigate to="/home" />} />
+      <Route path="/home" element={user ? <Unified /> : <Navigate to="/" />} />
+      <Route path="*" element={<Navigate to={user ? "/home" : "/"} replace />} />
     </Routes>
   );
 }
