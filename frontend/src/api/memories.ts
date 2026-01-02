@@ -91,4 +91,22 @@ export const memoryApi = {
     });
     return response.data;
   },
+
+  // New async upload endpoints
+  startUploadJob: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await client.post('/memories/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  getUploadJobStatus: async (jobId: string) => {
+    const response = await client.get(`/memories/upload/jobs/${jobId}`);
+    return response.data;
+  },
 };

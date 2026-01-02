@@ -128,8 +128,11 @@ func main() {
 	// Initialize file parser service
 	fileParserService := services.NewFileParserService()
 
+	// Initialize upload job service
+	uploadJobService := services.NewUploadJobService()
+
 	// Setup router
-	r := router.Setup(authService, todoService, groupService, aiProviderService, memoryService, ragService, userDataService, fileParserService, cfg.AllowedOrigins)
+	r := router.Setup(authService, todoService, groupService, aiProviderService, memoryService, ragService, userDataService, fileParserService, uploadJobService, cfg.AllowedOrigins)
 
 	// Start server
 	log.Printf("Server starting on port %s", cfg.Port)

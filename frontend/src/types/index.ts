@@ -140,6 +140,28 @@ export interface MemoryFileUploadResponse {
   file_type: string;
 }
 
+export type UploadJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface UploadJobCreateResponse {
+  job_id: string;
+  status: UploadJobStatus;
+  filename: string;
+  file_type: string;
+}
+
+export interface UploadJobStatusResponse {
+  job_id: string;
+  status: UploadJobStatus;
+  progress: number;
+  total_items: number;
+  processed_items: number;
+  memories: Memory[];
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
+}
+
 export interface WebSearchResult {
   title: string;
   url: string;
