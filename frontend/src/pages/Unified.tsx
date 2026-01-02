@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { Gear, Plus, Cpu, Trash, Database } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
 import { memoryApi, todoApi, ragApi, aiProviderApi, userDataApi } from '../api';
-import type { Memory, Todo, RAGAskResponse, RAGSearchResult, UploadJobStatusResponse, AskMode } from '../types';
+import type { Memory, Todo, RAGAskResponse, RAGSearchResult, UploadJobStatusResponse, AskMode, MemoryCategory, MemoryStats } from '../types';
 import type { AIProvider, AIProviderModel, AIProviderCreate, DataStats } from '../api';
 import UnifiedGrid from '../components/UnifiedGrid';
 import CreateNoteModal from '../components/CreateNoteModal';
@@ -17,6 +17,7 @@ import AskAIResults from '../components/AskAIResults';
 import AIProviderCard from '../components/AIProviderCard';
 import AIProviderForm from '../components/AIProviderForm';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
+import CategoryFilter from '../components/CategoryFilter';
 
 interface Message {
   id: string;
@@ -50,6 +51,9 @@ export default function Unified() {
   const [todos, setTodos] = useState<(Todo | PendingTodo)[]>([]);
   const [memoryCitations, setMemoryCitations] = useState<CitationItem[]>([]);
   const [todoCitations, setTodoCitations] = useState<CitationItem[]>([]);
+  const [categories, setCategories] = useState<MemoryCategory[]>([]);
+  const [memoryStats, setMemoryStats] = useState<MemoryStats | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   
   // UI states
   const [loading, setLoading] = useState(true);
@@ -81,12 +85,16 @@ export default function Unified() {
 
   const fetchData = async () => {
     try {
-      const [memoriesData, todosData] = await Promise.all([
+      const [memoriesData, todosData, categoriesData, statsData] = await Promise.all([
         memoryApi.getAll(),
         todoApi.getAll(),
+        memoryApi.getCategories(),
+        memoryApi.getStats(),
       ]);
       setMemories(memoriesData);
       setTodos(todosData);
+      setCategories(categoriesData);
+      setMemoryStats(statsData);
     } catch (error) {
       toast.error('Failed to fetch data');
     } finally {
@@ -102,6 +110,16 @@ export default function Unified() {
       if (memoryCitations.length > 0) {
         return memoryCitations;
       }
+      // Filter by selected category if one is selected
+      if (selectedCategory) {
+        return memories.filter((m) => {
+          // Check if it's a Memory type with category property
+          if ('category' in m) {
+            return m.category === selectedCategory;
+          }
+          return true;
+        });
+      }
       // Otherwise show all memories
       return memories;
     } else {
@@ -112,7 +130,7 @@ export default function Unified() {
       // Otherwise show all todos
       return todos;
     }
-  }, [activeTab, memories, todos, memoryCitations, todoCitations]);
+  }, [activeTab, memories, todos, memoryCitations, todoCitations, selectedCategory]);
 
   // Handle create memory
   const handleCreateNote = async (title: string, content: string) => {
@@ -158,6 +176,9 @@ export default function Unified() {
         
         // Replace pending with real item
         setMemories((prev) => prev.map((m) => m.id === tempId ? newMemory : m));
+
+        // Refresh stats in background (to update category counts)
+        memoryApi.getStats().then(setMemoryStats).catch(() => {});
 
         // Auto-clear Ask AI results when adding new memory (if there's an active search)
         if (askMessages.length > 0) {
@@ -252,6 +273,8 @@ export default function Unified() {
         }
         await memoryApi.delete(id);
         setMemories((prev) => prev.filter((m) => m.id !== id));
+        // Refresh stats in background (to update category counts)
+        memoryApi.getStats().then(setMemoryStats).catch(() => {});
         toast.success('Memory deleted');
       } else {
         // Check if it's a citation (can remove from citations)
@@ -287,6 +310,9 @@ export default function Unified() {
   const handleImportComplete = (importedMemories: Memory[]) => {
     setMemories((prev) => [...importedMemories, ...prev]);
     toast.success(`Imported ${importedMemories.length} memories`);
+
+    // Refresh stats in background (to update category counts)
+    memoryApi.getStats().then(setMemoryStats).catch(() => {});
 
     // Auto-clear Ask AI results when importing (if there's an active search)
     if (askMessages.length > 0) {
@@ -827,11 +853,12 @@ export default function Unified() {
           
           {/* Centered Pill Switch - Always visible, but unhighlighted when settings is active */}
           <div className="absolute left-1/2 transform -translate-x-1/2">
-            <PillSwitch 
-              activeTab={activeTab} 
+            <PillSwitch
+              activeTab={activeTab}
               onTabChange={(tab) => {
                 setActiveTab(tab);
                 setShowSettings(false); // Close settings when switching tabs
+                setSelectedCategory(null); // Clear category filter when switching tabs
               }}
               isSettingsActive={showSettings}
             />
@@ -871,7 +898,27 @@ export default function Unified() {
           </div>
         ) : (
           /* Grid Area - with subtle top padding so initial elements aren't hidden, but can scroll under header */
-          <div className="flex-1 overflow-y-auto pt-6 pb-32">
+          <div className="flex-1 overflow-y-auto pt-4 pb-32">
+            {/* Category Filter - only show for memories tab and when not showing citations */}
+            {activeTab === 'mems' && memoryCitations.length === 0 && !loading && (
+              <div className="mb-4">
+                <CategoryFilter
+                  categories={categories}
+                  stats={memoryStats}
+                  selectedCategory={selectedCategory}
+                  onCategoryChange={(category) => {
+                    setSelectedCategory(category);
+                    // Clear Ask AI results when changing category filter
+                    if (askMessages.length > 0) {
+                      setAskMessages([]);
+                      setMemoryCitations([]);
+                      setTodoCitations([]);
+                    }
+                  }}
+                />
+              </div>
+            )}
+
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
