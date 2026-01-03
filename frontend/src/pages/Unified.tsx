@@ -141,8 +141,10 @@ export default function Unified() {
       if (memoryCitations.length > 0) {
         return memoryCitations;
       }
-      // Otherwise show all memories
-      return memories;
+      // Otherwise show all memories sorted by position
+      return [...memories].sort((a, b) => {
+        return parseInt(a.position) - parseInt(b.position);
+      });
     } else {
       // If there are citations, only show citations (clear grid)
       if (todoCitations.length > 0) {
@@ -308,6 +310,42 @@ export default function Unified() {
   const handleQuickStatusToggle = async (todoId: string, currentStatus: 'pending' | 'completed') => {
     const newStatus: 'pending' | 'completed' = currentStatus === 'pending' ? 'completed' : 'pending';
     await handleUpdateItem(todoId, { status: newStatus });
+  };
+
+  // Handle memory reorder
+  const handleMemoryReorder = async (reorderedMemories: Memory[]) => {
+    try {
+      // Calculate positions: 1000, 2000, 3000...
+      const reorderData = reorderedMemories.map((memory, index) => ({
+        id: memory.id,
+        position: String((index + 1) * 1000),
+      }));
+
+      // Call API to save new positions
+      await memoryApi.reorder({ memories: reorderData });
+      
+      // Update local state with memories that have new positions
+      const updatedMemories = memories.map((memory) => {
+        const positionData = reorderData.find(r => r.id === memory.id);
+        if (positionData) {
+          // Update position for reordered memories
+          const reorderedMemory = reorderedMemories.find(m => m.id === memory.id);
+          return {
+            ...(reorderedMemory || memory),
+            position: positionData.position,
+          };
+        }
+        // Keep memories that weren't reordered unchanged
+        return memory;
+      });
+      
+      setMemories(updatedMemories);
+    } catch (error) {
+      console.error('Failed to reorder memories:', error);
+      toast.error('Failed to reorder memories');
+      // Refresh to get correct order from server
+      await fetchData();
+    }
   };
 
   // Handle todo reorder
@@ -1091,7 +1129,7 @@ export default function Unified() {
                     onImportClick={() => setIsImportModalOpen(true)}
                     onItemClick={handleItemClick}
                     onItemUpdate={activeTab === 'todos' ? handleQuickStatusToggle : undefined}
-                    onReorder={activeTab === 'todos' ? handleTodoReorder : undefined}
+                    onReorder={activeTab === 'todos' ? handleTodoReorder : activeTab === 'mems' ? handleMemoryReorder : undefined}
                     uploadStatus={uploadStatus}
                   />
                 )}

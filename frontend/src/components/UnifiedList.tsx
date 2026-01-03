@@ -27,7 +27,7 @@ export default function UnifiedList({ items, type, onCreateClick, onImportClick,
   const isTodoType = type === 'todo';
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
-    if (!isTodoType || !onReorder) return;
+    if (!onReorder) return;
     const item = items[index];
     if (!('id' in item) || 'document' in item) return; // Skip citations
     setDraggedIndex(index);
@@ -43,19 +43,21 @@ export default function UnifiedList({ items, type, onCreateClick, onImportClick,
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
-    if (!isTodoType || draggedIndex === null || draggedIndex === index) return;
+    if (!onReorder || draggedIndex === null || draggedIndex === index) return;
     const item = items[index];
     if (!('id' in item) || 'document' in item) return; // Skip citations
     
-    // Check if we're trying to move a completed item above a pending item
-    const draggedItem = items[draggedIndex];
-    if ('id' in draggedItem && !('document' in draggedItem)) {
-      const draggedTodo = draggedItem as Todo;
-      const dropTodo = item as Todo;
-      
-      if (draggedTodo.status === 'completed' && dropTodo.status === 'pending') {
-        e.dataTransfer.dropEffect = 'none';
-        return;
+    // For todos: Check if we're trying to move a completed item above a pending item
+    if (isTodoType) {
+      const draggedItem = items[draggedIndex];
+      if ('id' in draggedItem && !('document' in draggedItem)) {
+        const draggedTodo = draggedItem as Todo;
+        const dropTodo = item as Todo;
+        
+        if (draggedTodo.status === 'completed' && dropTodo.status === 'pending') {
+          e.dataTransfer.dropEffect = 'none';
+          return;
+        }
       }
     }
     
@@ -70,7 +72,7 @@ export default function UnifiedList({ items, type, onCreateClick, onImportClick,
 
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
-    if (!isTodoType || !onReorder || draggedIndex === null || draggedIndex === dropIndex) {
+    if (!onReorder || draggedIndex === null || draggedIndex === dropIndex) {
       setDraggedIndex(null);
       setDragOverIndex(null);
       return;
@@ -86,37 +88,39 @@ export default function UnifiedList({ items, type, onCreateClick, onImportClick,
       return;
     }
 
-    const draggedTodo = draggedItem as Todo;
-    const dropTodo = dropItem as Todo;
-    
-    // Prevent completed items from moving above pending items
-    if (draggedTodo.status === 'completed' && dropTodo.status === 'pending') {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
+    // For todos: Prevent completed items from moving above pending items
+    if (isTodoType) {
+      const draggedTodo = draggedItem as Todo;
+      const dropTodo = dropItem as Todo;
+      
+      if (draggedTodo.status === 'completed' && dropTodo.status === 'pending') {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+        return;
+      }
     }
 
-    // Filter to get only todos (not citations)
-    const todoItems = items.filter((item): item is Todo => 'id' in item && !('document' in item));
+    // Filter to get only items (not citations)
+    const filteredItems = items.filter(item => 'id' in item && !('document' in item));
     
-    // Find indices in the todoItems array
-    const draggedTodoIndex = todoItems.findIndex(t => t.id === draggedTodo.id);
-    const dropTodoIndex = todoItems.findIndex(t => t.id === dropTodo.id);
+    // Find indices in the filteredItems array
+    const draggedItemIndex = filteredItems.findIndex(item => 'id' in item && item.id === (draggedItem as any).id);
+    const dropItemIndex = filteredItems.findIndex(item => 'id' in item && item.id === (dropItem as any).id);
     
-    if (draggedTodoIndex === -1 || dropTodoIndex === -1) {
+    if (draggedItemIndex === -1 || dropItemIndex === -1) {
       setDraggedIndex(null);
       setDragOverIndex(null);
       return;
     }
 
     // Create new array with reordered items
-    const newItems = [...todoItems];
-    const [removed] = newItems.splice(draggedTodoIndex, 1);
-    newItems.splice(dropTodoIndex, 0, removed);
+    const newItems = [...filteredItems];
+    const [removed] = newItems.splice(draggedItemIndex, 1);
+    newItems.splice(dropItemIndex, 0, removed);
 
-    // Call reorder handler with reordered todos
+    // Call reorder handler with reordered items
     if (onReorder) {
-      onReorder(newItems);
+      onReorder(newItems as any);
     }
     
     setDraggedIndex(null);
@@ -197,13 +201,14 @@ export default function UnifiedList({ items, type, onCreateClick, onImportClick,
         {items.map((item, index) => {
           const itemId = 'id' in item ? item.id : ('document' in item ? item.document.id : `citation-${index}`);
           const isTodo = isTodoType && 'id' in item && !('document' in item);
+          const isMemory = !isTodoType && 'id' in item && !('document' in item);
           const todoItem = isTodo ? (item as Todo) : null;
           const isTodoCompleted = todoItem?.status === 'completed' || false;
           const isDragging = draggedIndex === index;
           const isDragOver = dragOverIndex === index;
           
-          // Only enable drag for pending todos
-          const dragHandleProps = isTodo && onReorder && !isTodoCompleted ? {
+          // Enable drag for pending todos or memories
+          const dragHandleProps = ((isTodo && onReorder && !isTodoCompleted) || (isMemory && onReorder)) ? {
             draggable: true,
             onDragStart: (e: React.DragEvent) => {
               e.stopPropagation();
@@ -222,9 +227,9 @@ export default function UnifiedList({ items, type, onCreateClick, onImportClick,
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.02 }}
               className={isDragOver ? 'ring-2 ring-primary-500 rounded-lg' : ''}
-              onDragOver={isTodo ? (e) => handleDragOver(e, index) : undefined}
-              onDragLeave={isTodo ? handleDragLeave : undefined}
-              onDrop={isTodo ? (e) => handleDrop(e, index) : undefined}
+              onDragOver={(dragHandleProps || isMemory) ? (e) => handleDragOver(e, index) : undefined}
+              onDragLeave={(dragHandleProps || isMemory) ? handleDragLeave : undefined}
+              onDrop={(dragHandleProps || isMemory) ? (e) => handleDrop(e, index) : undefined}
             >
               <UnifiedCard
                 item={item}

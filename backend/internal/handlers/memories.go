@@ -249,6 +249,26 @@ func (h *MemoryHandler) WebSearch(c *gin.Context) {
 	})
 }
 
+// Reorder updates positions for multiple memories
+func (h *MemoryHandler) Reorder(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+
+	var req models.MemoryReorderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.memoryService.Reorder(userID, &req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "memories reordered successfully",
+	})
+}
+
 // GetStats returns memory statistics
 func (h *MemoryHandler) GetStats(c *gin.Context) {
 	userID := middleware.GetUserID(c)

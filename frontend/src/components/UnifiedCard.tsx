@@ -197,8 +197,8 @@ export default function UnifiedCard({ item, type, onClick, onStatusToggle, isDra
         </div>
       )}
       
-      {/* Drag handle for todos - shown on hover, positioned on right */}
-      {type === 'todo' && todo && !isCitation && dragHandleProps && (
+      {/* Drag handle for todos and memories - shown on hover, positioned on right */}
+      {((type === 'todo' && todo) || (type === 'memory' && !isCitation)) && dragHandleProps && (
         <div
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}

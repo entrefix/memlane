@@ -98,6 +98,7 @@ func Setup(
 			protected.GET("/memories/category/:category", memoryHandler.GetByCategory)
 			protected.GET("/memories/stats", memoryHandler.GetStats)
 			protected.POST("/memories/search", memoryHandler.Search)
+			protected.PUT("/memories/reorder", memoryHandler.Reorder)
 			protected.GET("/memories/digest", memoryHandler.GetDigest)
 			protected.POST("/memories/digest/generate", memoryHandler.GenerateDigest)
 			protected.POST("/memories/web-search", memoryHandler.WebSearch)

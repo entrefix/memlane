@@ -109,4 +109,8 @@ export const memoryApi = {
     const response = await client.get(`/memories/upload/jobs/${jobId}`);
     return response.data;
   },
+
+  reorder: async (data: { memories: Array<{ id: string; position: string }> }): Promise<void> => {
+    await client.put('/memories/reorder', data);
+  },
 };

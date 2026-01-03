@@ -115,6 +115,7 @@ func runMigrations(db *sql.DB) error {
 		url_title TEXT,
 		url_content TEXT,
 		is_archived INTEGER DEFAULT 0,
+		position TEXT DEFAULT '1000',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -176,6 +177,7 @@ func runMigrations(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category);
 	CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
 	CREATE INDEX IF NOT EXISTS idx_memories_is_archived ON memories(is_archived);
+	-- Note: idx_memories_position is created in runDataMigrations after ensuring column exists
 	CREATE INDEX IF NOT EXISTS idx_memory_categories_user_id ON memory_categories(user_id);
 	CREATE INDEX IF NOT EXISTS idx_memory_digests_user_id ON memory_digests(user_id);
 	CREATE INDEX IF NOT EXISTS idx_chat_threads_user_id ON chat_threads(user_id);
@@ -218,6 +220,50 @@ func runMigrations(db *sql.DB) error {
 
 	if _, err := db.Exec(seedMemoryCategories); err != nil {
 		return fmt.Errorf("failed to seed default memory categories: %w", err)
+	}
+
+	// Run data migrations (add missing columns to existing tables)
+	if err := runDataMigrations(db); err != nil {
+		return fmt.Errorf("failed to run data migrations: %w", err)
+	}
+
+	return nil
+}
+
+// runDataMigrations handles schema changes to existing databases
+func runDataMigrations(db *sql.DB) error {
+	// Check if memories.position column exists, add it if not
+	var count int
+	err := db.QueryRow(`
+		SELECT COUNT(*) FROM pragma_table_info('memories') WHERE name = 'position'
+	`).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("failed to check for position column: %w", err)
+	}
+
+	if count == 0 {
+		// Add position column to existing memories table
+		if _, err := db.Exec(`
+			ALTER TABLE memories ADD COLUMN position TEXT DEFAULT '1000';
+		`); err != nil {
+			return fmt.Errorf("failed to add position column to memories: %w", err)
+		}
+
+		// Update existing memories with default positions based on created_at
+		if _, err := db.Exec(`
+			UPDATE memories 
+			SET position = CAST((ROW_NUMBER() OVER (ORDER BY created_at ASC) * 1000) AS TEXT)
+			WHERE position IS NULL OR position = '';
+		`); err != nil {
+			return fmt.Errorf("failed to set default positions for existing memories: %w", err)
+		}
+	}
+
+	// Always ensure the index exists (for both new and migrated databases)
+	if _, err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_memories_position ON memories(position);
+	`); err != nil {
+		return fmt.Errorf("failed to create position index: %w", err)
 	}
 
 	return nil

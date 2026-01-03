@@ -12,6 +12,7 @@ type Memory struct {
 	URLTitle   *string   `json:"url_title"`
 	URLContent *string   `json:"url_content"`
 	IsArchived bool      `json:"is_archived"`
+	Position   string    `json:"position"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }
@@ -59,6 +60,15 @@ type MemoryToTodoRequest struct {
 	Description *string `json:"description"`
 	Priority    *string `json:"priority"`
 	GroupID     *string `json:"group_id"`
+}
+
+type MemoryReorderRequest struct {
+	Memories []MemoryPosition `json:"memories" binding:"required"`
+}
+
+type MemoryPosition struct {
+	ID       string `json:"id" binding:"required"`
+	Position string `json:"position" binding:"required"`
 }
 
 type WebSearchRequest struct {
