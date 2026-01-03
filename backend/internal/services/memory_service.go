@@ -41,10 +41,17 @@ func NewMemoryService(
 func (s *MemoryService) Create(userID string, req *models.MemoryCreateRequest) (*models.Memory, error) {
 	log.Printf("[MemoryService] Creating memory for user %s: %q", userID, req.Content)
 
+	// Get max position for new memory
+	maxPos, err := s.memoryRepo.GetMaxPosition(userID)
+	if err != nil {
+		maxPos = 0
+	}
+
 	memory := &models.Memory{
 		UserID:   userID,
 		Content:  req.Content,
 		Category: "Uncategorized",
+		Position: fmt.Sprintf("%d", maxPos+1000),
 	}
 
 	// Get AI config
@@ -352,6 +359,22 @@ func (s *MemoryService) ConvertToTodo(userID, memoryID string, req *models.Memor
 // GetCategories returns all available categories
 func (s *MemoryService) GetCategories(userID string) ([]models.MemoryCategory, error) {
 	return s.memoryRepo.GetCategories(userID)
+}
+
+// Reorder updates positions for multiple memories
+func (s *MemoryService) Reorder(userID string, req *models.MemoryReorderRequest) error {
+	// Verify all memories belong to user before updating
+	for _, m := range req.Memories {
+		memory, err := s.memoryRepo.GetByID(m.ID)
+		if err != nil {
+			return err
+		}
+		if memory == nil || memory.UserID != userID {
+			return fmt.Errorf("memory %s not found or unauthorized", m.ID)
+		}
+	}
+
+	return s.memoryRepo.UpdatePositions(req.Memories)
 }
 
 // GetStats returns memory statistics

@@ -26,10 +26,13 @@ func (r *MemoryRepository) Create(memory *models.Memory) error {
 		memory.Category = "Uncategorized"
 	}
 
+	if memory.Position == "" {
+		memory.Position = "1000"
+	}
 	_, err := r.db.Exec(`
-		INSERT INTO memories (id, user_id, content, summary, category, url, url_title, url_content, is_archived, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, memory.ID, memory.UserID, memory.Content, memory.Summary, memory.Category, memory.URL, memory.URLTitle, memory.URLContent, memory.IsArchived, memory.CreatedAt, memory.UpdatedAt)
+		INSERT INTO memories (id, user_id, content, summary, category, url, url_title, url_content, is_archived, position, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, memory.ID, memory.UserID, memory.Content, memory.Summary, memory.Category, memory.URL, memory.URLTitle, memory.URLContent, memory.IsArchived, memory.Position, memory.CreatedAt, memory.UpdatedAt)
 
 	return err
 }
@@ -40,9 +43,9 @@ func (r *MemoryRepository) GetByID(id string) (*models.Memory, error) {
 	var isArchived int
 
 	err := r.db.QueryRow(`
-		SELECT id, user_id, content, summary, category, url, url_title, url_content, is_archived, created_at, updated_at
+		SELECT id, user_id, content, summary, category, url, url_title, url_content, is_archived, position, created_at, updated_at
 		FROM memories WHERE id = ?
-	`, id).Scan(&memory.ID, &memory.UserID, &memory.Content, &summary, &memory.Category, &url, &urlTitle, &urlContent, &isArchived, &memory.CreatedAt, &memory.UpdatedAt)
+	`, id).Scan(&memory.ID, &memory.UserID, &memory.Content, &summary, &memory.Category, &url, &urlTitle, &urlContent, &isArchived, &memory.Position, &memory.CreatedAt, &memory.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -74,10 +77,10 @@ func (r *MemoryRepository) GetAllByUserID(userID string, limit, offset int) ([]m
 	}
 
 	rows, err := r.db.Query(`
-		SELECT id, user_id, content, summary, category, url, url_title, url_content, is_archived, created_at, updated_at
+		SELECT id, user_id, content, summary, category, url, url_title, url_content, is_archived, position, created_at, updated_at
 		FROM memories
 		WHERE user_id = ? AND is_archived = 0
-		ORDER BY created_at DESC
+		ORDER BY CAST(position AS INTEGER) ASC, created_at DESC
 		LIMIT ? OFFSET ?
 	`, userID, limit, offset)
 	if err != nil {
@@ -94,10 +97,10 @@ func (r *MemoryRepository) GetByCategory(userID, category string, limit, offset 
 	}
 
 	rows, err := r.db.Query(`
-		SELECT id, user_id, content, summary, category, url, url_title, url_content, is_archived, created_at, updated_at
+		SELECT id, user_id, content, summary, category, url, url_title, url_content, is_archived, position, created_at, updated_at
 		FROM memories
 		WHERE user_id = ? AND category = ? AND is_archived = 0
-		ORDER BY created_at DESC
+		ORDER BY CAST(position AS INTEGER) ASC, created_at DESC
 		LIMIT ? OFFSET ?
 	`, userID, category, limit, offset)
 	if err != nil {
@@ -110,7 +113,7 @@ func (r *MemoryRepository) GetByCategory(userID, category string, limit, offset 
 
 func (r *MemoryRepository) Search(userID string, req *models.MemorySearchRequest) ([]models.Memory, error) {
 	query := `
-		SELECT id, user_id, content, summary, category, url, url_title, url_content, is_archived, created_at, updated_at
+		SELECT id, user_id, content, summary, category, url, url_title, url_content, is_archived, position, created_at, updated_at
 		FROM memories
 		WHERE user_id = ? AND is_archived = 0
 	`
@@ -137,7 +140,7 @@ func (r *MemoryRepository) Search(userID string, req *models.MemorySearchRequest
 		args = append(args, *req.DateTo)
 	}
 
-	query += " ORDER BY created_at DESC"
+	query += " ORDER BY CAST(position AS INTEGER) ASC, created_at DESC"
 
 	limit := req.Limit
 	if limit <= 0 {
@@ -157,10 +160,10 @@ func (r *MemoryRepository) Search(userID string, req *models.MemorySearchRequest
 
 func (r *MemoryRepository) GetByDateRange(userID string, from, to time.Time) ([]models.Memory, error) {
 	rows, err := r.db.Query(`
-		SELECT id, user_id, content, summary, category, url, url_title, url_content, is_archived, created_at, updated_at
+		SELECT id, user_id, content, summary, category, url, url_title, url_content, is_archived, position, created_at, updated_at
 		FROM memories
 		WHERE user_id = ? AND is_archived = 0 AND created_at >= ? AND created_at <= ?
-		ORDER BY created_at DESC
+		ORDER BY CAST(position AS INTEGER) ASC, created_at DESC
 	`, userID, from, to)
 	if err != nil {
 		return nil, err
@@ -369,6 +372,47 @@ func (r *MemoryRepository) GetStats(userID string) (*models.MemoryStats, error) 
 	return stats, nil
 }
 
+// GetMaxPosition returns the maximum position for a user's memories
+func (r *MemoryRepository) GetMaxPosition(userID string) (int, error) {
+	var maxPos sql.NullInt64
+	err := r.db.QueryRow(`
+		SELECT MAX(CAST(position AS INTEGER)) FROM memories WHERE user_id = ?
+	`, userID).Scan(&maxPos)
+
+	if err != nil {
+		return 0, err
+	}
+
+	if maxPos.Valid {
+		return int(maxPos.Int64), nil
+	}
+	return 0, nil
+}
+
+// UpdatePositions updates positions for multiple memories
+func (r *MemoryRepository) UpdatePositions(memories []models.MemoryPosition) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare("UPDATE memories SET position = ?, updated_at = ? WHERE id = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, m := range memories {
+		_, err := stmt.Exec(m.Position, time.Now(), m.ID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 // Helper function to scan memory rows
 func (r *MemoryRepository) scanMemories(rows *sql.Rows) ([]models.Memory, error) {
 	memories := []models.Memory{}
@@ -377,7 +421,7 @@ func (r *MemoryRepository) scanMemories(rows *sql.Rows) ([]models.Memory, error)
 		var summary, url, urlTitle, urlContent sql.NullString
 		var isArchived int
 
-		err := rows.Scan(&memory.ID, &memory.UserID, &memory.Content, &summary, &memory.Category, &url, &urlTitle, &urlContent, &isArchived, &memory.CreatedAt, &memory.UpdatedAt)
+		err := rows.Scan(&memory.ID, &memory.UserID, &memory.Content, &summary, &memory.Category, &url, &urlTitle, &urlContent, &isArchived, &memory.Position, &memory.CreatedAt, &memory.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}

@@ -77,6 +77,7 @@ export interface Memory {
   url_title: string | null;
   url_content: string | null;
   is_archived: boolean;
+  position: string;
   created_at: string;
   updated_at: string;
 }

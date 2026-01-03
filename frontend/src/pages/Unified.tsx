@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { Gear, Plus, Cpu, Trash, Database } from '@phosphor-icons/react';
+import { Gear, Plus, Cpu, Trash, Database, GridFour, List } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
-import { memoryApi, todoApi, ragApi, aiProviderApi, userDataApi } from '../api';
+import { memoryApi, todoApi, ragApi, aiProviderApi, userDataApi, chatApi } from '../api';
 import type { Memory, Todo, RAGAskResponse, RAGSearchResult, UploadJobStatusResponse, AskMode } from '../types';
 import type { AIProvider, AIProviderModel, AIProviderCreate, DataStats } from '../api';
 import UnifiedGrid from '../components/UnifiedGrid';
+import UnifiedList from '../components/UnifiedList';
 import CreateNoteModal from '../components/CreateNoteModal';
 import NoteDetailModal from '../components/NoteDetailModal';
 import ImportModal from '../components/ImportModal';
@@ -29,6 +30,7 @@ interface Message {
 }
 
 type ActiveTab = 'mems' | 'todos';
+type ViewMode = 'grid' | 'list';
 
 // Citation type for grid display
 type CitationItem = {
@@ -44,6 +46,11 @@ export default function Unified() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('mems');
   const [showSettings, setShowSettings] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    // Load from localStorage, default to grid
+    const saved = localStorage.getItem('todo_view_mode');
+    return (saved === 'list' || saved === 'grid') ? saved : 'grid';
+  });
   
   // Data states
   const [memories, setMemories] = useState<(Memory | PendingMemory)[]>([]);
@@ -63,6 +70,7 @@ export default function Unified() {
   const [askInputValue, setAskInputValue] = useState('');
   const [isAskLoading, setIsAskLoading] = useState(false);
   const [askMode, setAskMode] = useState<AskMode>('memories');
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
 
   // Upload status
   const [uploadStatus, setUploadStatus] = useState<UploadJobStatusResponse | null>(null);
@@ -72,12 +80,43 @@ export default function Unified() {
     return !localStorage.getItem('memlane_onboarding_complete');
   });
 
+  // Save view mode to localStorage when it changes
+  useEffect(() => {
+    if (activeTab === 'todos') {
+      localStorage.setItem('todo_view_mode', viewMode);
+    }
+  }, [viewMode, activeTab]);
+
   // Load initial data
   useEffect(() => {
     if (user) {
       fetchData();
+      loadChatThread();
     }
   }, [user]);
+
+  // Load chat thread on mount
+  const loadChatThread = async () => {
+    try {
+      const response = await chatApi.getActiveThread();
+      setCurrentThreadId(response.thread.id);
+      
+      // Convert backend messages to frontend Message format
+      const loadedMessages: Message[] = response.messages.map((msg) => ({
+        id: msg.id,
+        type: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+        mode: msg.mode as AskMode | undefined,
+        sources: msg.sources ? JSON.parse(msg.sources) : undefined,
+      }));
+      
+      setAskMessages(loadedMessages);
+    } catch (error) {
+      console.error('Failed to load chat thread:', error);
+      // If no thread exists, one will be created on first message
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -102,15 +141,43 @@ export default function Unified() {
       if (memoryCitations.length > 0) {
         return memoryCitations;
       }
-      // Otherwise show all memories
-      return memories;
+      // Otherwise show all memories sorted by position
+      return [...memories].sort((a, b) => {
+        return parseInt(a.position) - parseInt(b.position);
+      });
     } else {
       // If there are citations, only show citations (clear grid)
       if (todoCitations.length > 0) {
         return todoCitations;
       }
-      // Otherwise show all todos
-      return todos;
+      // Sort todos: pending first, completed last
+      const sortedTodos = [...todos].sort((a, b) => {
+        // Only sort actual Todo items, not PendingTodo
+        if ('isProcessing' in a || 'isProcessing' in b) {
+          return 0; // Keep processing items in place
+        }
+        
+        const todoA = a as Todo;
+        const todoB = b as Todo;
+        
+        // Pending todos come first
+        if (todoA.status === 'pending' && todoB.status === 'completed') return -1;
+        if (todoA.status === 'completed' && todoB.status === 'pending') return 1;
+        
+        // Within same status, sort by position (for pending) or updated_at (for completed)
+        if (todoA.status === 'pending' && todoB.status === 'pending') {
+          return parseInt(todoA.position) - parseInt(todoB.position);
+        }
+        
+        // Completed todos: most recently completed first
+        if (todoA.status === 'completed' && todoB.status === 'completed') {
+          return new Date(todoB.updated_at).getTime() - new Date(todoA.updated_at).getTime();
+        }
+        
+        return 0;
+      });
+      
+      return sortedTodos;
     }
   }, [activeTab, memories, todos, memoryCitations, todoCitations]);
 
@@ -239,6 +306,102 @@ export default function Unified() {
     }
   };
 
+  // Handle quick status toggle for todos
+  const handleQuickStatusToggle = async (todoId: string, currentStatus: 'pending' | 'completed') => {
+    const newStatus: 'pending' | 'completed' = currentStatus === 'pending' ? 'completed' : 'pending';
+    await handleUpdateItem(todoId, { status: newStatus });
+  };
+
+  // Handle memory reorder
+  const handleMemoryReorder = async (reorderedMemories: Memory[]) => {
+    try {
+      // Calculate positions: 1000, 2000, 3000...
+      const reorderData = reorderedMemories.map((memory, index) => ({
+        id: memory.id,
+        position: String((index + 1) * 1000),
+      }));
+
+      // Call API to save new positions
+      await memoryApi.reorder({ memories: reorderData });
+      
+      // Update local state with memories that have new positions
+      const updatedMemories = memories.map((memory) => {
+        const positionData = reorderData.find(r => r.id === memory.id);
+        if (positionData) {
+          // Update position for reordered memories
+          const reorderedMemory = reorderedMemories.find(m => m.id === memory.id);
+          return {
+            ...(reorderedMemory || memory),
+            position: positionData.position,
+          };
+        }
+        // Keep memories that weren't reordered unchanged
+        return memory;
+      });
+      
+      setMemories(updatedMemories);
+    } catch (error) {
+      console.error('Failed to reorder memories:', error);
+      toast.error('Failed to reorder memories');
+      // Refresh to get correct order from server
+      await fetchData();
+    }
+  };
+
+  // Handle todo reorder
+  const handleTodoReorder = async (reorderedTodos: Todo[]) => {
+    try {
+      // Separate pending and completed from reordered todos to maintain their separation
+      const pendingTodos = reorderedTodos.filter(t => t.status === 'pending');
+      const completedTodos = reorderedTodos.filter(t => t.status === 'completed');
+      
+      // Calculate positions: pending get 1000, 2000, 3000... and completed get higher positions
+      const reorderData: Array<{ id: string; position: string }> = [];
+      
+      // Add pending todos with positions starting at 1000
+      pendingTodos.forEach((todo, index) => {
+        reorderData.push({
+          id: todo.id,
+          position: String((index + 1) * 1000),
+        });
+      });
+      
+      // Add completed todos with positions after pending (e.g., if 3 pending, start at 4000)
+      const completedStartPosition = (pendingTodos.length + 1) * 1000;
+      completedTodos.forEach((todo, index) => {
+        reorderData.push({
+          id: todo.id,
+          position: String(completedStartPosition + (index * 1000)),
+        });
+      });
+
+      // Call API to save new positions
+      await todoApi.reorder({ todos: reorderData });
+      
+      // Update local state with todos that have new positions
+      const updatedTodos = todos.map((todo) => {
+        const positionData = reorderData.find(r => r.id === todo.id);
+        if (positionData) {
+          // Update position for reordered todos
+          const reorderedTodo = reorderedTodos.find(t => t.id === todo.id);
+          return {
+            ...(reorderedTodo || todo),
+            position: positionData.position,
+          };
+        }
+        // Keep todos that weren't reordered unchanged
+        return todo;
+      });
+      
+      setTodos(updatedTodos);
+    } catch (error) {
+      console.error('Failed to reorder todos:', error);
+      toast.error('Failed to reorder todos');
+      // Refresh to get correct order from server
+      await fetchData();
+    }
+  };
+
   // Handle delete item
   const handleDeleteItem = async (id: string) => {
     try {
@@ -306,6 +469,19 @@ export default function Unified() {
 
     const loadingId = (Date.now() + 1).toString();
 
+    // Ensure we have a thread ID
+    let threadId = currentThreadId;
+    if (!threadId) {
+      try {
+        const threadResponse = await chatApi.getActiveThread();
+        threadId = threadResponse.thread.id;
+        setCurrentThreadId(threadId);
+      } catch (error) {
+        console.error('Failed to get/create thread:', error);
+        // Continue without persistence if thread creation fails
+      }
+    }
+
     // For new queries: add new user message + loading (keep existing messages for stack)
     // For regenerate: just add loading message to existing
     if (!skipUserMessage) {
@@ -316,6 +492,20 @@ export default function Unified() {
         timestamp: new Date(),
         mode: askMode, // Store the mode with the user message
       };
+      
+      // Save user message to backend
+      if (threadId) {
+        try {
+          await chatApi.addMessage(threadId, {
+            role: 'user',
+            content: query,
+            mode: askMode,
+          });
+        } catch (error) {
+          console.error('Failed to save user message:', error);
+        }
+      }
+      
       // Add new messages to existing (stack effect)
       setAskMessages((prev) => [
         ...prev,
@@ -365,6 +555,20 @@ export default function Unified() {
             : msg
         )
       );
+
+      // Save assistant message to backend
+      if (threadId) {
+        try {
+          await chatApi.addMessage(threadId, {
+            role: 'assistant',
+            content: response.answer,
+            mode: askMode,
+            sources: response.sources ? JSON.stringify(response.sources) : undefined,
+          });
+        } catch (error) {
+          console.error('Failed to save assistant message:', error);
+        }
+      }
 
       // Extract and split citations - CLEAR completely before adding new ones
       // Clear existing citations first
@@ -838,6 +1042,34 @@ export default function Unified() {
           </div>
           
           <div className="flex items-center gap-4">
+            {/* View Toggle - Only show for todos */}
+            {activeTab === 'todos' && !showSettings && (
+              <div className="flex items-center gap-1 bg-surface-light-muted dark:bg-surface-dark-muted rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded transition-colors ${
+                    viewMode === 'grid'
+                      ? 'bg-primary-600 text-white dark:bg-primary-500'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                  title="Grid View"
+                >
+                  <GridFour size={18} weight="regular" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded transition-colors ${
+                    viewMode === 'list'
+                      ? 'bg-primary-600 text-white dark:bg-primary-500'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                  title="List View"
+                >
+                  <List size={18} weight="regular" />
+                </button>
+              </div>
+            )}
+            
             <button
               onClick={() => {
                 setShowSettings(!showSettings);
@@ -877,14 +1109,31 @@ export default function Unified() {
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
               </div>
             ) : (
-              <UnifiedGrid
-                items={displayItems}
-                type={activeTab === 'mems' ? 'memory' : 'todo'}
-                onCreateClick={() => setIsCreateModalOpen(true)}
-                onImportClick={() => setIsImportModalOpen(true)}
-                onItemClick={handleItemClick}
-                uploadStatus={uploadStatus}
-              />
+              <>
+                {activeTab === 'todos' && viewMode === 'list' ? (
+                  <UnifiedList
+                    items={displayItems}
+                    type="todo"
+                    onCreateClick={() => setIsCreateModalOpen(true)}
+                    onImportClick={() => setIsImportModalOpen(true)}
+                    onItemClick={handleItemClick}
+                    onItemUpdate={handleQuickStatusToggle}
+                    onReorder={handleTodoReorder}
+                    uploadStatus={uploadStatus}
+                  />
+                ) : (
+                  <UnifiedGrid
+                    items={displayItems}
+                    type={activeTab === 'mems' ? 'memory' : 'todo'}
+                    onCreateClick={() => setIsCreateModalOpen(true)}
+                    onImportClick={() => setIsImportModalOpen(true)}
+                    onItemClick={handleItemClick}
+                    onItemUpdate={activeTab === 'todos' ? handleQuickStatusToggle : undefined}
+                    onReorder={activeTab === 'todos' ? handleTodoReorder : activeTab === 'mems' ? handleMemoryReorder : undefined}
+                    uploadStatus={uploadStatus}
+                  />
+                )}
+              </>
             )}
           </div>
         )}
@@ -899,7 +1148,25 @@ export default function Unified() {
               onInputChange={setAskInputValue}
               onSubmit={handleAskSubmit}
               onRegenerate={handleRegenerateQuery}
-              onClear={() => {
+              onClear={async () => {
+                // Delete current thread and create a new one
+                if (currentThreadId) {
+                  try {
+                    await chatApi.deleteThread(currentThreadId);
+                  } catch (error) {
+                    console.error('Failed to delete thread:', error);
+                  }
+                }
+                
+                // Create new thread
+                try {
+                  const newThread = await chatApi.createThread();
+                  setCurrentThreadId(newThread.thread.id);
+                } catch (error) {
+                  console.error('Failed to create new thread:', error);
+                  setCurrentThreadId(null);
+                }
+                
                 setAskMessages([]);
                 setMemoryCitations([]);
                 setTodoCitations([]);
