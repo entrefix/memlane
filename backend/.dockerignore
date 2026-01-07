@@ -1,0 +1,44 @@
+# Environment files - NEVER copy these into Docker images
+.env
+.env.local
+.env*.local
+*.env
+
+# Data files (should use volumes)
+data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Build outputs
+tmp/
+main
+server
+
+# Dependencies (will be downloaded in container)
+vendor/
+
+# IDE files
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Logs
+*.log

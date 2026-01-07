@@ -10,7 +10,6 @@ Create a `.env` file in the `backend/` directory with the following variables:
 # Supabase Configuration (Required)
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_JWT_SECRET=your-jwt-secret
 
 # Database (Optional - defaults provided)
@@ -27,8 +26,20 @@ ALLOWED_ORIGINS=http://localhost:3111
 
 1. **SUPABASE_URL**: Found in your Supabase project settings under "API" → "Project URL"
 2. **SUPABASE_ANON_KEY**: Found in your Supabase project settings under "API" → "Project API keys" → "anon public"
-3. **SUPABASE_SERVICE_ROLE_KEY**: Found in your Supabase project settings under "API" → "Project API keys" → "service_role secret" (⚠️ Keep this secret!)
-4. **SUPABASE_JWT_SECRET**: Found in your Supabase project settings under "Settings" → "API" → "JWT Secret"
+3. **SUPABASE_JWT_SECRET**: Found in your Supabase project settings under "Settings" → "API" → "JWT Secret"
+
+### ⚠️ Security Warning: Service Role Key
+
+**DO NOT** use the `SUPABASE_SERVICE_ROLE_KEY` in your application!
+
+- The service role key grants **ADMIN access** and bypasses all Row Level Security (RLS) policies
+- It should **NEVER** be stored in your `.env` file or used in the main application
+- It should only be used in:
+  - Secure backend migration scripts (run once, manually)
+  - Admin-only CLI tools
+  - Temporary troubleshooting (then immediately rotated)
+
+The backend uses `SUPABASE_JWT_SECRET` to verify tokens, which is secure and correct. You do NOT need the service role key for normal authentication operations.
 
 ## Frontend Environment Variables
 
