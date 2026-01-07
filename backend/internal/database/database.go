@@ -165,7 +165,7 @@ func runMigrations(db *sql.DB) error {
 
 	-- Indexes
 	CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-	CREATE UNIQUE INDEX IF NOT EXISTS idx_users_supabase_id ON users(supabase_id) WHERE supabase_id IS NOT NULL;
+	-- Note: idx_users_supabase_id is created in runDataMigrations after ensuring column exists
 	CREATE INDEX IF NOT EXISTS idx_todos_user_id ON todos(user_id);
 	CREATE INDEX IF NOT EXISTS idx_todos_group_id ON todos(group_id);
 	CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
