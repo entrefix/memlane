@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
-import { Sun, Moon, Plus, Cpu, Trash, Database } from '@phosphor-icons/react';
+import { useAuth } from '../contexts/AuthContext';
+import { Sun, Moon, Plus, Cpu, Trash, Database, Lock, GoogleLogo } from '@phosphor-icons/react';
 import { aiProviderApi, userDataApi } from '../api';
 import type { AIProvider, AIProviderModel, AIProviderCreate, DataStats } from '../api';
 import AIProviderCard from '../components/AIProviderCard';
 import AIProviderForm from '../components/AIProviderForm';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
+import { supabase } from '../lib/supabase';
 
 export default function Settings() {
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -27,11 +29,37 @@ export default function Settings() {
   const [showClearMemoriesModal, setShowClearMemoriesModal] = useState(false);
   const [showClearAllModal, setShowClearAllModal] = useState(false);
 
+  // Password change state
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [authProvider, setAuthProvider] = useState<'email' | 'google' | null>(null);
+  const { updatePassword } = useAuth();
+
   // Fetch providers on mount
   useEffect(() => {
     fetchProviders();
     fetchDataStats();
+    checkAuthProvider();
   }, []);
+
+  const checkAuthProvider = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Check if user has email provider or OAuth provider
+        const providers = user.app_metadata?.providers || [];
+        if (providers.includes('google')) {
+          setAuthProvider('google');
+        } else {
+          setAuthProvider('email');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check auth provider:', error);
+    }
+  };
 
   const fetchProviders = async () => {
     try {
@@ -178,6 +206,31 @@ export default function Settings() {
 
   const handleSaveSettings = () => {
     toast.success('Settings saved successfully');
+  };
+
+  const handleChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await updatePassword(newPassword);
+      toast.success('Password updated successfully');
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowPasswordForm(false);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update password');
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   return (
@@ -335,6 +388,118 @@ export default function Settings() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Account & Security */}
+        <div className="bg-surface-light-muted dark:bg-surface-dark-muted rounded-2xl overflow-hidden">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <Lock size={20} weight="regular" className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-heading text-gray-900 dark:text-white">
+                  Account & Security
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Manage your account security settings
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Auth Provider Info */}
+              <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white mb-1">
+                      Authentication Method
+                    </h3>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      {authProvider === 'google' ? (
+                        <>
+                          <GoogleLogo size={16} weight="regular" />
+                          <span>Signed in with Google</span>
+                        </>
+                      ) : (
+                        <span>Email & Password</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Change Password */}
+              {authProvider === 'email' && (
+                <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                  {!showPasswordForm ? (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium text-gray-900 dark:text-white mb-1">
+                          Password
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Change your account password
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowPasswordForm(true)}
+                        className="px-4 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 border border-primary-300 dark:border-primary-800 rounded-xl hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                      >
+                        Change Password
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          New Password
+                        </label>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="w-full px-4 py-2 bg-white dark:bg-surface-dark-muted border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          placeholder="Enter new password"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Confirm Password
+                        </label>
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="w-full px-4 py-2 bg-white dark:bg-surface-dark-muted border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          placeholder="Confirm new password"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleChangePassword}
+                          disabled={changingPassword}
+                          className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {changingPassword ? 'Updating...' : 'Update Password'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowPasswordForm(false);
+                            setNewPassword('');
+                            setConfirmPassword('');
+                          }}
+                          className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

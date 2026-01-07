@@ -80,6 +80,26 @@ export default function Unified() {
     return !localStorage.getItem('memlane_onboarding_complete');
   });
 
+  // Apply fixed positioning for full-height layout (only on Unified page)
+  useEffect(() => {
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.height = '100%';
+    
+    // Cleanup: restore normal scrolling when component unmounts
+    return () => {
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.height = '';
+    };
+  }, []);
+
   // Save view mode to localStorage when it changes
   useEffect(() => {
     if (activeTab === 'todos') {

@@ -30,6 +30,11 @@ type Config struct {
 	NIMModel        string
 	NIMRPMLimit     int
 	NIMEmbeddingDim int
+	// Supabase settings
+	SupabaseURL           string
+	SupabaseAnonKey       string
+	SupabaseServiceRoleKey string
+	SupabaseJWTSecret      string
 }
 
 func Load() (*Config, error) {
@@ -131,23 +136,27 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		Port:            port,
-		DatabasePath:    dbPath,
-		JWTSecret:       os.Getenv("JWT_SECRET"),
-		JWTExpiration:   expDuration,
-		EncryptionKey:   encryptionKey,
-		OpenAIBaseURL:   os.Getenv("OPENAI_BASE_URL"),
-		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
-		OpenAIModel:     openaiModel,
-		AllowedOrigins:  origins,
-		SearXNGURLs:     searxngURLs,
-		EmbeddingModel:  embeddingModel,
-		VectorDBPath:    vectorDBPath,
-		RAGEnabled:      ragEnabled,
-		NIMAPIKey:       os.Getenv("NIM_API_KEY"),
-		NIMBaseURL:      nimBaseURL,
-		NIMModel:        nimModel,
-		NIMRPMLimit:     nimRPMLimit,
-		NIMEmbeddingDim: nimEmbeddingDim,
+		Port:                  port,
+		DatabasePath:          dbPath,
+		JWTSecret:             os.Getenv("JWT_SECRET"),
+		JWTExpiration:         expDuration,
+		EncryptionKey:          encryptionKey,
+		OpenAIBaseURL:         os.Getenv("OPENAI_BASE_URL"),
+		OpenAIAPIKey:          os.Getenv("OPENAI_API_KEY"),
+		OpenAIModel:           openaiModel,
+		AllowedOrigins:        origins,
+		SearXNGURLs:           searxngURLs,
+		EmbeddingModel:        embeddingModel,
+		VectorDBPath:          vectorDBPath,
+		RAGEnabled:            ragEnabled,
+		NIMAPIKey:             os.Getenv("NIM_API_KEY"),
+		NIMBaseURL:            nimBaseURL,
+		NIMModel:              nimModel,
+		NIMRPMLimit:           nimRPMLimit,
+		NIMEmbeddingDim:       nimEmbeddingDim,
+		SupabaseURL:           os.Getenv("SUPABASE_URL"),
+		SupabaseAnonKey:       os.Getenv("SUPABASE_ANON_KEY"),
+		SupabaseServiceRoleKey: os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),
+		SupabaseJWTSecret:     os.Getenv("SUPABASE_JWT_SECRET"),
 	}, nil
 }

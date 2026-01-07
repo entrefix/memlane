@@ -76,11 +76,10 @@ export default function CreateNoteModal({ isOpen, onClose, onSubmit, type }: Cre
     
     try {
       await onSubmit(finalTitle, finalContent);
-      // Reset form after successful save
+      // Reset form after successful save (keep modal open for rapid entry)
       setTitle('');
       setContent('');
       setAutoTitle('');
-      onClose();
     } catch (error) {
       console.error('Failed to create memory:', error);
       // Error handling is done in parent component
