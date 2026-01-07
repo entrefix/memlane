@@ -18,8 +18,8 @@ FROM alpine:3.19
 
 WORKDIR /app
 
-# Install ca-certificates for HTTPS requests (OpenAI API)
-RUN apk --no-cache add ca-certificates tzdata
+# Install ca-certificates for HTTPS requests (OpenAI API) and sqlite3 for debugging
+RUN apk --no-cache add ca-certificates tzdata sqlite
 
 # Copy binary from builder
 COPY --from=builder /app/main .
