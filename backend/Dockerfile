@@ -13,6 +13,12 @@ COPY . .
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/server
 
+# Build migration script
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o migrate-users ./scripts/migrate_users_to_supabase.go
+
+# Build check users script
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o check-users ./scripts/check_users.go
+
 # Final stage
 FROM alpine:3.19
 
@@ -21,8 +27,10 @@ WORKDIR /app
 # Install ca-certificates for HTTPS requests (OpenAI API) and sqlite3 for debugging
 RUN apk --no-cache add ca-certificates tzdata sqlite
 
-# Copy binary from builder
+# Copy binaries from builder
 COPY --from=builder /app/main .
+COPY --from=builder /app/migrate-users .
+COPY --from=builder /app/check-users .
 
 # Copy scripts for database management
 COPY --from=builder /app/scripts /app/scripts
