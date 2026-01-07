@@ -24,6 +24,10 @@ RUN apk --no-cache add ca-certificates tzdata sqlite
 # Copy binary from builder
 COPY --from=builder /app/main .
 
+# Copy scripts for database management
+COPY --from=builder /app/scripts /app/scripts
+RUN chmod +x /app/scripts/*.sh
+
 EXPOSE 8099
 
 CMD ["./main"]
