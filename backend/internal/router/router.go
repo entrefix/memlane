@@ -5,11 +5,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/todomyday/backend/internal/handlers"
 	"github.com/todomyday/backend/internal/middleware"
+	"github.com/todomyday/backend/internal/repository"
 	"github.com/todomyday/backend/internal/services"
 )
 
 func Setup(
-	authService *services.AuthService,
+	supabaseAuthService *services.SupabaseAuthService,
+	userRepo *repository.UserRepository,
 	todoService *services.TodoService,
 	groupService *services.GroupService,
 	aiProviderService *services.AIProviderService,
@@ -37,7 +39,7 @@ func Setup(
 	r.GET("/health", handlers.HealthCheck)
 
 	// Create handlers
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(userRepo)
 	todoHandler := handlers.NewTodoHandler(todoService)
 	groupHandler := handlers.NewGroupHandler(groupService)
 	aiProviderHandler := handlers.NewAIProviderHandler(aiProviderService)
@@ -52,14 +54,13 @@ func Setup(
 		// Auth routes (public)
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", authHandler.Register)
-			auth.POST("/login", authHandler.Login)
+			// Register and Login are now handled by Supabase on the frontend
 			auth.POST("/logout", authHandler.Logout)
 		}
 
 		// Protected routes
 		protected := api.Group("")
-		protected.Use(middleware.AuthMiddleware(authService))
+		protected.Use(middleware.AuthMiddleware(supabaseAuthService))
 		{
 			// Auth - get current user
 			protected.GET("/auth/me", authHandler.Me)

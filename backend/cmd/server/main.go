@@ -18,9 +18,18 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Validate required config
-	if cfg.JWTSecret == "" {
-		log.Fatal("JWT_SECRET environment variable is required")
+	// Validate required config for Supabase
+	if cfg.SupabaseURL == "" {
+		log.Fatal("SUPABASE_URL environment variable is required")
+	}
+	if cfg.SupabaseJWTSecret == "" {
+		log.Fatal("SUPABASE_JWT_SECRET environment variable is required")
+	}
+	if cfg.SupabaseAnonKey == "" {
+		log.Fatal("SUPABASE_ANON_KEY environment variable is required")
+	}
+	if cfg.SupabaseServiceRoleKey == "" {
+		log.Fatal("SUPABASE_SERVICE_ROLE_KEY environment variable is required")
 	}
 
 	// Connect to database
@@ -43,8 +52,16 @@ func main() {
 	// Initialize encryptor for API keys
 	encryptor := crypto.NewEncryptor(cfg.EncryptionKey)
 
+	// Initialize Supabase auth service
+	supabaseAuthService := services.NewSupabaseAuthService(
+		userRepo,
+		cfg.SupabaseJWTSecret,
+		cfg.SupabaseURL,
+		cfg.SupabaseAnonKey,
+		cfg.SupabaseServiceRoleKey,
+	)
+
 	// Initialize core services
-	authService := services.NewAuthService(userRepo, cfg.JWTSecret, cfg.JWTExpiration)
 	aiService := services.NewAIService(cfg.OpenAIBaseURL, cfg.OpenAIAPIKey, cfg.OpenAIModel)
 	aiProviderService := services.NewAIProviderService(aiProviderRepo, encryptor)
 	groupService := services.NewGroupService(groupRepo)
@@ -137,7 +154,7 @@ func main() {
 	chatService := services.NewChatService(chatRepo)
 
 	// Setup router
-	r := router.Setup(authService, todoService, groupService, aiProviderService, memoryService, ragService, userDataService, fileParserService, uploadJobService, chatService, cfg.AllowedOrigins)
+	r := router.Setup(supabaseAuthService, userRepo, todoService, groupService, aiProviderService, memoryService, ragService, userDataService, fileParserService, uploadJobService, chatService, cfg.AllowedOrigins)
 
 	// Start server
 	log.Printf("Server starting on port %s", cfg.Port)

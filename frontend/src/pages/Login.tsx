@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { Envelope, Lock, ArrowRight, CircleNotch } from '@phosphor-icons/react';
+import { Envelope, Lock, ArrowRight, CircleNotch, GoogleLogo } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const { signIn, signInWithGoogle } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,10 +20,27 @@ export default function Login() {
     try {
       await signIn(email, password);
       toast.success('Welcome back!');
-    } catch (error) {
-      toast.error('Invalid email or password');
+      navigate('/home');
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Invalid email or password';
+      if (errorMessage.includes('Email not confirmed')) {
+        toast.error('Please check your email to confirm your account');
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      // OAuth redirect will happen, so we don't need to navigate
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to sign in with Google');
+      setGoogleLoading(false);
     }
   };
 
@@ -120,7 +139,7 @@ export default function Login() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || googleLoading}
                 className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium shadow-subtle hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 {loading ? (
@@ -135,10 +154,42 @@ export default function Login() {
                   </>
                 )}
               </button>
+
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white dark:bg-surface-dark-elevated text-gray-500 dark:text-gray-400">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+
+              {/* Google Sign In Button */}
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={loading || googleLoading}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-white dark:bg-surface-dark-muted border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              >
+                {googleLoading ? (
+                  <>
+                    <CircleNotch size={20} weight="regular" className="animate-spin" />
+                    <span>Connecting...</span>
+                  </>
+                ) : (
+                  <>
+                    <GoogleLogo size={20} weight="regular" />
+                    <span>Continue with Google</span>
+                  </>
+                )}
+              </button>
             </form>
 
-            {/* Footer Link */}
-            <div className="mt-6 text-center">
+            {/* Footer Links */}
+            <div className="mt-6 space-y-2 text-center">
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Don't have an account?{' '}
                 <Link
@@ -146,6 +197,14 @@ export default function Login() {
                   className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
                 >
                   Sign up
+                </Link>
+              </p>
+              <p className="text-sm">
+                <Link
+                  to="/forgot-password"
+                  className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
+                >
+                  Forgot password?
                 </Link>
               </p>
             </div>

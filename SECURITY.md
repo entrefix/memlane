@@ -47,7 +47,7 @@ We will:
 ### For Users
 
 1. **Environment Variables**: Never commit `.env` files or expose API keys
-2. **JWT Secret**: Use a strong, randomly generated secret (minimum 32 characters)
+2. **Supabase JWT Secret**: Store securely, use for token verification (backend only)
 3. **Encryption Key**: Generate a secure 32-character encryption key for production
 4. **API Keys**: Keep your AI provider API keys secure
 5. **Database**: Ensure database files have proper permissions
@@ -61,19 +61,51 @@ We will:
 3. **Input Validation**: Validate and sanitize all user inputs
 4. **SQL Injection**: Use parameterized queries (already implemented)
 5. **XSS**: Sanitize user-generated content
-6. **Authentication**: Use secure JWT practices
+6. **Authentication**: Use Supabase authentication with proper RLS policies
 7. **Encryption**: Encrypt sensitive data at rest (API keys)
+
+## Critical Supabase Security Guidelines
+
+### ✅ Safe to Expose (Frontend)
+
+- `VITE_SUPABASE_URL` - Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Anonymous/public key (designed to be public)
+
+### 🔒 Backend Only (Secret)
+
+- `SUPABASE_JWT_SECRET` - For verifying JWT tokens on backend
+- `SUPABASE_ANON_KEY` - Also used on backend for API calls
+
+### ⛔ NEVER Use in Application
+
+- `SUPABASE_SERVICE_ROLE_KEY` - Grants admin access, bypasses all RLS policies
+
+**Warning**: The service role key should NEVER be in your `.env` file or application code. It should only be used in:
+- One-time migration scripts (run manually)
+- Admin CLI tools (not deployed)
+- Temporary troubleshooting (then rotated immediately)
+
+### Docker Security
+
+The application uses `.dockerignore` files to prevent `.env` files from being copied into Docker images:
+
+- `frontend/.dockerignore` - Prevents frontend secrets in build
+- `backend/.dockerignore` - Prevents backend secrets in build
+
+Secrets are passed to containers via `docker-compose.yml` environment variables (read from your local `.env`, not copied into image).
 
 ## Known Security Considerations
 
 ### Current Security Features
 
-- ✅ JWT authentication with httpOnly cookies
-- ✅ bcrypt password hashing
-- ✅ Encrypted storage of user API keys
+- ✅ Supabase authentication with JWT tokens
+- ✅ Row Level Security (RLS) via Supabase
+- ✅ Encrypted storage of user API keys (AES encryption)
 - ✅ Parameterized SQL queries (SQLite)
 - ✅ CORS protection
 - ✅ Input validation on API endpoints
+- ✅ `.dockerignore` files preventing secret leaks in images
+- ✅ `.gitignore` preventing secret commits to version control
 
 ### Areas for Improvement
 

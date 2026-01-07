@@ -51,9 +51,10 @@ func (s *AuthService) Register(req *models.RegisterRequest) (*models.User, strin
 		return nil, "", err
 	}
 
+	hashedPasswordStr := string(hashedPassword)
 	user := &models.User{
 		Email:        req.Email,
-		PasswordHash: string(hashedPassword),
+		PasswordHash: &hashedPasswordStr,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
@@ -79,7 +80,10 @@ func (s *AuthService) Login(req *models.LoginRequest) (*models.User, string, err
 	}
 
 	// Verify password
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+	if user.PasswordHash == nil {
+		return nil, "", ErrInvalidCredentials
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(req.Password)); err != nil {
 		return nil, "", ErrInvalidCredentials
 	}
 

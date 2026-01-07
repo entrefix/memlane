@@ -24,6 +24,10 @@ services:
       - NIM_MODEL=${NIM_MODEL:-nvidia/nv-embedqa-e5-v5}
       - NIM_RPM_LIMIT=${NIM_RPM_LIMIT:-40}
       - NIM_EMBEDDING_DIM=${NIM_EMBEDDING_DIM:-1024}
+      # Supabase settings (for authentication)
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
     volumes:
       - ./data:/data
     restart: unless-stopped
@@ -34,6 +38,8 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8099}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
     container_name: todomyday-frontend
     ports:
       - "8080:80"

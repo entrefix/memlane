@@ -1,0 +1,41 @@
+# Environment files - NEVER copy these into Docker images
+.env
+.env.local
+.env*.local
+*.env
+
+# Dependencies (will be installed fresh in container)
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs (will be built in container)
+dist
+dist-ssr
+
+# IDE files
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Cache
+.cache
+.vite

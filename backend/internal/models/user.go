@@ -4,8 +4,9 @@ import "time"
 
 type User struct {
 	ID           string    `json:"id"`
+	SupabaseID   *string   `json:"-"` // Supabase user ID (UUID)
 	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
+	PasswordHash *string   `json:"-"` // Nullable for OAuth users
 	FullName     *string   `json:"full_name"`
 	Theme        string    `json:"theme"`
 	CreatedAt    time.Time `json:"created_at"`

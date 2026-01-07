@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { Envelope, Lock, ArrowRight, CircleNotch } from '@phosphor-icons/react';
+import { Envelope, Lock, ArrowRight, CircleNotch, GoogleLogo } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Register() {
@@ -10,7 +10,9 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signUp } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const { signUp, signInWithGoogle } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,11 +26,32 @@ export default function Register() {
 
     try {
       await signUp(email, password);
-      toast.success('Account created successfully!');
-    } catch (error) {
-      toast.error('Failed to create account');
+      toast.success('Account created! Please check your email to confirm your account.');
+      // If email confirmation is disabled, user will be signed in automatically
+      // Otherwise, redirect to login
+      navigate('/login');
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to create account';
+      if (errorMessage.includes('already registered')) {
+        toast.error('An account with this email already exists');
+      } else if (errorMessage.includes('Password')) {
+        toast.error('Password must be at least 6 characters');
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      // OAuth redirect will happen, so we don't need to navigate
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to sign in with Google');
+      setGoogleLoading(false);
     }
   };
 
@@ -149,7 +172,7 @@ export default function Register() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || googleLoading}
                 className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium shadow-subtle hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 {loading ? (
@@ -161,6 +184,38 @@ export default function Register() {
                   <>
                     <span>Create Account</span>
                     <ArrowRight size={20} weight="regular" />
+                  </>
+                )}
+              </button>
+
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white dark:bg-surface-dark-elevated text-gray-500 dark:text-gray-400">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+
+              {/* Google Sign In Button */}
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={loading || googleLoading}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-white dark:bg-surface-dark-muted border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              >
+                {googleLoading ? (
+                  <>
+                    <CircleNotch size={20} weight="regular" className="animate-spin" />
+                    <span>Connecting...</span>
+                  </>
+                ) : (
+                  <>
+                    <GoogleLogo size={20} weight="regular" />
+                    <span>Continue with Google</span>
                   </>
                 )}
               </button>
