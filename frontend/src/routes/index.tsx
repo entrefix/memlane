@@ -18,11 +18,22 @@ function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
+        // Check URL params for the type (e.g., recovery, signup, magiclink)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const type = hashParams.get('type');
+
         // Supabase will handle the OAuth callback automatically
         // We just need to wait for the session to be established
         const { data: { session } } = await supabase.auth.getSession();
+
         if (session) {
-          navigate('/home');
+          // If it's a password recovery link, redirect to reset password page
+          if (type === 'recovery') {
+            navigate('/reset-password');
+          } else {
+            // For other auth types (oauth, magiclink), go to home
+            navigate('/home');
+          }
         } else {
           navigate('/login');
         }
@@ -58,7 +69,7 @@ export default function AppRoutes() {
       <Route path="/login" element={!user ? <Login /> : <Navigate to="/home" replace />} />
       <Route path="/register" element={!user ? <Register /> : <Navigate to="/home" replace />} />
       <Route path="/forgot-password" element={!user ? <ForgotPassword /> : <Navigate to="/home" replace />} />
-      <Route path="/reset-password" element={!user ? <ResetPassword /> : <Navigate to="/home" replace />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/" element={!user ? <Landing /> : <Navigate to="/home" replace />} />
       <Route path="/home" element={user ? <Unified /> : <Navigate to="/login" replace />} />
